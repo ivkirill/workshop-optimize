@@ -82,21 +82,6 @@ a:hover {
   border-bottom-color: var(--plata-orange);
 }
 
-.pl-theme-toggle {
-  margin-left: auto;
-  padding: var(--plata-space-2) var(--plata-space-3);
-  border: 1px solid var(--ds-border);
-  border-radius: var(--plata-radius-sm);
-  background: var(--ds-surface);
-  color: var(--ds-muted);
-  font: inherit;
-  text-transform: capitalize;
-  cursor: pointer;
-}
-.pl-theme-toggle:hover {
-  border-color: var(--plata-gray-400);
-}
-
 /* ── Layout ─────────────────────────────────────────────────────── */
 .pl-main {
   max-width: 1080px;

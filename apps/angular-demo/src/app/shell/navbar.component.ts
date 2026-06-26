@@ -1,7 +1,6 @@
 /** Top navigation bar — Plata Burrito CRM shell. */
 import { Component } from '@angular/core';
 import { RouterLink, RouterLinkActive } from '@angular/router';
-import { ThemeService } from '../shared/theme.service';
 
 interface NavLink {
   path: string;
@@ -23,7 +22,6 @@ interface NavLink {
           <li><a [routerLink]="link.path" routerLinkActive="is-active">{{ link.label }}</a></li>
         }
       </ul>
-      <button class="pl-theme-toggle" type="button" (click)="theme.toggle()">{{ theme.theme }}</button>
     </nav>
   `,
 })
@@ -33,6 +31,4 @@ export class NavbarComponent {
     { path: '/orders', label: 'Orders' },
     { path: '/finance', label: 'Finance' },
   ];
-
-  constructor(readonly theme: ThemeService) {}
 }
