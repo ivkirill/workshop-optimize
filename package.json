@@ -1,0 +1,52 @@
+{
+  "name": "token-efficient-agent-workshop",
+  "version": "0.0.0",
+  "private": true,
+  "type": "module",
+  "description": "Workshop: measure and reduce the cost of a real coding agent solving a frontend task.",
+  "engines": {
+    "node": ">=20.11"
+  },
+  "workspaces": [
+    "apps/*"
+  ],
+  "scripts": {
+    "start": "npm start --workspace @workshop/angular-demo",
+    "build": "npm run build --workspace @workshop/angular-demo",
+    "workshop:doctor": "tsx workshop/facilitator/doctor.ts",
+    "typecheck": "tsc -p tsconfig.json --noEmit",
+    "test": "npm test --workspaces --if-present",
+    "variant": "tsx workshop/cli/variant.ts",
+    "tokens:measure": "tsx workshop/cli/measure.ts",
+    "tokens:compare": "tsx workshop/cli/compare.ts",
+    "e2e:hygiene": "tsx e2e/test-hygiene.ts",
+    "e2e:proxy": "tsx e2e/test-proxy.ts",
+    "e2e:hygiene-codex": "tsx e2e/test-hygiene-codex.ts",
+    "e2e:hygiene-cursor": "tsx e2e/test-hygiene-cursor.ts",
+    "e2e:hooks": "tsx e2e/test-hooks.ts",
+    "e2e:hooks-codex": "tsx e2e/test-hooks-codex.ts",
+    "e2e:hooks-cursor": "tsx e2e/test-hooks-cursor.ts",
+    "e2e:all": "npm run e2e:hygiene && npm run e2e:proxy && npm run e2e:hooks && npm run e2e:hooks-codex && npm run e2e:hooks-cursor",
+    "workshop:run1": "npx tsx e2e/workshop-runner.ts run1",
+    "workshop:run2": "npx tsx e2e/workshop-runner.ts run2",
+    "workshop:run3": "npx tsx e2e/workshop-runner.ts run3",
+    "workshop:baseline": "npx tsx e2e/baseline-runs.ts",
+    "setup:mcp": "bash workshop/cli/setup-mcp.sh",
+    "setup:mcp-cleanup": "bash workshop/cli/setup-mcp-cleanup.sh",
+    "setup:docker": "bash workshop/cli/setup-docker.sh",
+    "setup:docker-cleanup": "bash workshop/cli/setup-docker-cleanup.sh",
+    "setup:trust": "tsx workshop/cli/setup-trust.ts",
+    "setup": "[ ! -f .env ] && cp .env.example .env && echo \"Created .env from .env.example\" || true; npm run setup:docker && npm run setup:mcp && npm run setup:trust && echo \"\n\u2705 Workshop ready. Pick your variant: npm run variant -- <1|2|3>\"",
+    "cleanup": "npm run setup:mcp-cleanup && npm run setup:docker-cleanup && echo \"\n\u2705 Workshop cleanup complete.\""
+  },
+  "devDependencies": {
+    "@eslint/js": "^9.39.4",
+    "@modelcontextprotocol/sdk": "^1.29.0",
+    "@types/node": "^20.19.0",
+    "eslint": "^9.39.4",
+    "tsx": "^4.19.0",
+    "typescript": "~5.6.3",
+    "typescript-eslint": "^8.62.0",
+    "zod": "^4.4.3"
+  }
+}
