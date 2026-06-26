@@ -1,81 +1,111 @@
 /**
- * MCP Proxy — compact middleware between the agent and bloated MCP servers.
+ * MCP compact proxy — sits between the agent and the 5 bloated MCP servers.
  *
- * SCAFFOLD for workshop Run 3. Participants extend the compactors to apply
- * truncation, field filtering, structured summary, dedup, and pagination.
+ * One Express process on :9100. Each upstream is reached via `POST /mcp?target=<server>`,
+ * so server/tool NAMES are preserved (the agent still sees `jira`, `confluence`, … and tools
+ * like `jira_get_issue`) — `.mcp-proxy.json` just points each of the 5 entries at this port.
  *
- * Usage:
- *   npm start              # starts on port 9100
- *   # Then point .mcp.json to http://localhost:9100/mcp?target=jira (etc.)
+ * Default: passthrough (forward list/call to the upstream unchanged).
+ * `COMPACT=1`: strip known bloat fields from tool results before they reach the agent
+ *   (the Run 3 "solution" — field filtering; extend with truncation / summary / dedup).
+ *
+ *   npm start              # passthrough on :9100
+ *   COMPACT=1 npm start    # compacting proxy
  */
-import { McpServer } from "@modelcontextprotocol/sdk/server/mcp.js";
-import { StdioServerTransport } from "@modelcontextprotocol/sdk/server/stdio.js";
+import express from "express";
+import { Server } from "@modelcontextprotocol/sdk/server/index.js";
+import { StreamableHTTPServerTransport } from "@modelcontextprotocol/sdk/server/streamableHttp.js";
+import { Client } from "@modelcontextprotocol/sdk/client/index.js";
+import { StreamableHTTPClientTransport } from "@modelcontextprotocol/sdk/client/streamableHttp.js";
+import { ListToolsRequestSchema, CallToolRequestSchema } from "@modelcontextprotocol/sdk/types.js";
 
-// ── Compactors (SCAFFOLD — extend in Run 3) ──────────────────────────
+const UPSTREAM: Record<string, number> = { jira: 9001, github: 9002, confluence: 9003, sentry: 9004, testrail: 9005 };
+const PORT = Number(process.env.PORT ?? 9100);
+const COMPACT = process.env.COMPACT === "1";
+// In docker-compose each MCP service is reachable by its name (jira:9001, …); on the host it's localhost.
+const IN_DOCKER = process.env.IN_DOCKER === "1";
 
-function compactJson(data: unknown, maxChars = 2000): string {
-  const str = JSON.stringify(data);
-  if (str.length <= maxChars) return str;
-  return str.substring(0, maxChars) + `\n... [${str.length - maxChars} more chars]`;
-}
+// ── Compaction (the Run 3 "solution"; passthrough leaves it off) ────────
+// Field filtering: drop the metadataBloat fields + bloat arrays the agent never uses.
+const STRIP_KEYS = new Set([
+  "metadata", "createdBy", "createdAt", "lastReviewedBy", "lastReviewedAt", "reviewIntervalDays",
+  "ownerTeam", "stakeholderTeams", "correlationId", "auditTrailUrl", "viewCount", "uniqueViewers",
+]);
+const STRIP_ARRAYS = new Set(["contributors", "watchers", "searchMetadata"]);
 
-function compactJiraResponse(raw: unknown): string {
-  const data = raw as Record<string, unknown>;
-  if (data?.fields) {
-    const f = data.fields as Record<string, unknown>;
-    return JSON.stringify({
-      summary: f.summary,
-      description: f.description,
-      definitionOfDone: f.definitionOfDone,
-      relatedResources: f.relatedResources,
-    });
+function stripBloat(obj: unknown): unknown {
+  if (obj === null || typeof obj !== "object") return obj;
+  if (Array.isArray(obj)) return obj.map(stripBloat);
+  const out: Record<string, unknown> = {};
+  for (const [k, v] of Object.entries(obj as Record<string, unknown>)) {
+    if (STRIP_KEYS.has(k) || STRIP_ARRAYS.has(k)) continue;
+    out[k] = stripBloat(v);
   }
-  return compactJson(data, 3000);
+  return out;
 }
 
-function compactConfluenceResponse(raw: unknown): string {
-  const data = raw as Record<string, unknown>;
-  if (data?.body) {
-    return JSON.stringify({
-      title: data.title,
-      body: String(data.body).substring(0, 2000),
-      space: data.space,
-    });
+/** Compact a tool result: strip bloat from each text block's JSON payload. Generic identity keeps
+ * the SDK's CallToolResult union type intact for the request handler. */
+function compactResult<T>(result: T): T {
+  const content = (result as { content?: unknown }).content;
+  if (!Array.isArray(content)) return result;
+  const compacted = content.map((block) => {
+    const b = block as { type?: unknown; text?: unknown };
+    if (b.type !== "text" || typeof b.text !== "string") return block;
+    try {
+      return { ...(block as object), text: JSON.stringify(stripBloat(JSON.parse(b.text))) };
+    } catch {
+      return block;
+    }
+  });
+  return { ...result, content: compacted } as T;
+}
+
+// ── Upstream clients (lazy, cached per target across requests) ──────────
+const clients = new Map<string, Promise<Client>>();
+function upstream(target: string): Promise<Client> {
+  let c = clients.get(target);
+  if (!c) {
+    const client = new Client({ name: "compact-proxy", version: "1.0.0" });
+    const host = IN_DOCKER ? target : "localhost";
+    const transport = new StreamableHTTPClientTransport(new URL(`http://${host}:${UPSTREAM[target]}/mcp`));
+    c = client.connect(transport).then(() => client);
+    clients.set(target, c);
   }
-  return compactJson(data, 3000);
+  return c;
 }
 
-function compactSentryResponse(raw: unknown): string {
-  const data = raw as Record<string, unknown>;
-  return JSON.stringify({
-    title: data.title,
-    culprit: data.culprit,
-    message: data.message,
-    frames: (data.entries as Array<Record<string, unknown>>)?.[0]?.data?.values?.[0]?.stacktrace?.frames?.slice(0, 3),
-  });
-}
+// ── Agent-facing HTTP (stateless server per request, like the mocks) ────
+const app = express();
+app.use(express.json({ limit: "8mb" }));
+app.get("/health", (_req, res) => res.json({ status: "ok", mode: COMPACT ? "compact" : "passthrough" }));
 
-function compactGeneric(data: unknown): string {
-  return compactJson(data, 4000);
-}
+app.post("/mcp", async (req, res) => {
+  const target = String(req.query.target ?? "");
+  if (!UPSTREAM[target]) {
+    res.status(400).json({ jsonrpc: "2.0", error: { code: -32602, message: `unknown target: ${target}` }, id: null });
+    return;
+  }
 
-// ── Proxy server ─────────────────────────────────────────────────────
-
-async function main() {
-  // Always use stdio transport — Claude Code/Codex connect via stdio
-  const server = new McpServer({
-    name: "compact-proxy",
-    version: "1.0.0",
+  const server = new Server({ name: `proxy:${target}`, version: "1.0.0" }, { capabilities: { tools: {} } });
+  server.setRequestHandler(ListToolsRequestSchema, async () => (await upstream(target)).listTools());
+  server.setRequestHandler(CallToolRequestSchema, async (request) => {
+    const result = await (await upstream(target)).callTool(request.params);
+    return COMPACT ? compactResult(result) : result;
   });
 
-  // SCAFFOLD: register compact versions of each upstream tool
-  // In a full implementation, the proxy connects to upstream MCP servers,
-  // lists their tools, and re-exports them with compact response handlers.
-  // For the workshop, participants wire this to actual upstream servers.
+  const transport = new StreamableHTTPServerTransport({ sessionIdGenerator: undefined });
+  res.on("close", () => { void transport.close(); void server.close(); });
+  try {
+    await server.connect(transport);
+    await transport.handleRequest(req, res, req.body);
+  } catch {
+    if (!res.headersSent) {
+      res.status(500).json({ jsonrpc: "2.0", error: { code: -32603, message: "proxy error" }, id: null });
+    }
+  }
+});
 
-  const transport = new StdioServerTransport();
-  await server.connect(transport);
-  console.error("Compact MCP Proxy running on stdio");
-}
+app.get("/mcp", (_req, res) => res.status(405).json({ error: "method_not_allowed" }));
 
-main().catch(console.error);
+app.listen(PORT, () => console.log(`[proxy] streamable-http on :${PORT} (${COMPACT ? "COMPACT" : "passthrough"}) → ${Object.keys(UPSTREAM).join(", ")}`));

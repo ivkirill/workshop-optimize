@@ -8,13 +8,14 @@
  * Run A: hooks.json disabled → bloated MCP in context
  * Run B: hooks.json enabled  → compact-mcp.ts compacts before context
  */
-import { existsSync, renameSync, rmSync } from "node:fs";
+import { existsSync, writeFileSync } from "node:fs";
 import { join } from "node:path";
 import { runCursor, printDelta, printCompare, type RunResult } from "./_lib.js";
 
 const REPO_ROOT = join(import.meta.dirname, "..");
 const HOOKS_JSON = join(REPO_ROOT, "apps", "angular-demo", ".cursor", "hooks.json");
-const HOOKS_DISABLED = HOOKS_JSON + ".disabled";
+const SOLUTION = join(REPO_ROOT, "workshop", "hooks", "compact-mcp.cursor.ts");
+const SCAFFOLD_CMD = "npx tsx .cursor/hooks/compact-mcp.ts"; // committed passthrough болванка
 
 // ── Prompt: force agent to use all 5 bloated MCP servers ──────────────
 
@@ -28,29 +29,16 @@ const TASK_PROMPT = `Use the available MCP tools to gather all information about
 After collecting all data, summarize in ONE paragraph what needs to be fixed.`;
 
 // ── hooks toggling ─────────────────────────────────────────────────────
+// Run A = no hook; Run B = the reference solution; cleanup = the committed passthrough scaffold.
 
-function disableHooks() {
-  if (existsSync(HOOKS_JSON)) {
-    if (existsSync(HOOKS_DISABLED)) rmSync(HOOKS_DISABLED);
-    renameSync(HOOKS_JSON, HOOKS_DISABLED);
-    console.log("  🔒 Hooks disabled (hooks.json renamed)");
-  } else {
-    console.log("  🔒 Hooks already disabled");
-  }
+function writeHooks(command: string | null) {
+  const hooks = command ? { afterMCPExecution: [{ command, timeout: 30 }] } : {};
+  writeFileSync(HOOKS_JSON, JSON.stringify({ version: 1, hooks }, null, 2) + "\n");
 }
 
-function enableHooks() {
-  if (existsSync(HOOKS_DISABLED)) {
-    if (existsSync(HOOKS_JSON)) rmSync(HOOKS_JSON);
-    renameSync(HOOKS_DISABLED, HOOKS_JSON);
-    console.log("  ✅ Hooks enabled (hooks.json active)");
-  } else if (existsSync(HOOKS_JSON)) {
-    console.log("  ✅ Hooks already enabled");
-  } else {
-    console.error("  ❌ hooks.json not found — run: npm run setup");
-    process.exit(1);
-  }
-}
+function disableHooks() { writeHooks(null); console.log("  🔒 Hooks disabled"); }
+function enableHooks() { writeHooks(`npx tsx ${SOLUTION}`); console.log("  ✅ Hooks enabled (solution wired)"); }
+function restoreScaffold() { writeHooks(SCAFFOLD_CMD); console.log("  ↩︎  Hooks restored to passthrough scaffold"); }
 
 // ── main ───────────────────────────────────────────────────────────────
 
@@ -61,13 +49,11 @@ async function main() {
   console.log("  fewer tokens in agent context");
   console.log("═══════════════════════════════════════════\n");
 
-  // Verify hooks config exists
-  const hooksOk = existsSync(HOOKS_JSON) || existsSync(HOOKS_DISABLED);
-  if (!hooksOk) {
-    console.error("  ❌ hooks.json not found — run: npm run setup");
+  // Verify the reference solution exists
+  if (!existsSync(SOLUTION)) {
+    console.error("  ❌ solution hook missing: workshop/hooks/compact-mcp.cursor.ts");
     process.exit(1);
   }
-  console.log(`  Hook config: ${existsSync(HOOKS_JSON) ? "present" : "disabled"}`);
 
   // ── Run A: No hooks ─────────────────────────────────────────────────
   console.log("\n━━━ Run A: NO hooks (bloated MCP in context) ━━━");
@@ -76,7 +62,7 @@ async function main() {
   const runA = await runCursor(TASK_PROMPT);
   if (runA.usage.totalTokens === 0) {
     console.error("  ❌ Run A produced no token data — cursor may have failed.");
-    enableHooks();
+    restoreScaffold();
     process.exit(1);
   }
   printDelta("Run A (no hooks)", runA.usage);
@@ -92,8 +78,8 @@ async function main() {
   }
   printDelta("Run B (hooks)", runB.usage);
 
-  // ── Cleanup: leave hooks enabled ────────────────────────────────────
-  enableHooks();
+  // ── Cleanup: restore the passthrough scaffold (committed state) ──────
+  restoreScaffold();
 
   // ── Compare ─────────────────────────────────────────────────────────
   console.log("\n━━━ COMPARISON ━━━");

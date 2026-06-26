@@ -116,7 +116,7 @@ just "shortened a prompt." By the end they can:
 | Artifact | Role | Status |
 |---|---|---|
 | **Angular design-system app** | The product. Contains **multiple bugs, optimization points, and vulnerabilities** across different components — enough variety to assign different tasks to different teams. | **to build** (expand from single-bug baseline) |
-| **Quality gate** (`npm run scenario:verify`) | Hidden mandatory tests + typecheck + lint → decides "correct." Agent cannot weaken it. One gate per task variant. | **to build** (per-task gates) |
+| **Quality gate** | Mandatory tests + typecheck + lint → decides "correct," run automatically inside `workshop:run*`. Agent cannot weaken it. One gate per task variant. | **to build** (per-task gates) |
 | **5 MCP mock servers** | `taskTracker` (issue tracker), `github` (source control), `testenv` / TestRail (test runner), `confluence` / docs (documentation), `sentry` (error monitoring). Each has an **intentionally bloated tool schema** (verbose descriptions, oversized response formats) — this is the token trap. | **to build** |
 | **`AGENTS.md`** | Deliberately **unoptimized** — verbose, broad instructions, no context scoping. Serves as the baseline anchor for Run 1. Participants optimize it in Run 2. | **to build** (bloated version) |
 | **Agent-SDK (TS) harness** | Lightweight loop runner. Participants verify it locally. Writes per-run usage to a local report file. | **to build** |
@@ -284,7 +284,7 @@ picked different Run 3 approaches, they compare results across strategies.
 
 > **Superseded by the shipped harness.** The actual runner is `npm run workshop:run1|2|3`: each run
 > resets the buggy baseline itself and reads **only your run's** tokens — Claude via a pinned
-> `claude --session-id <id>` transcript, Codex via a cleared `.codex-log/`. **No git branches**, no
+> `claude --session-id <id>` transcript, Codex via its `~/.codex/sessions/` rollout. **No git branches**, no
 > `tokens:measure`/`tokens:compare`. The branch-based scheme below is the original design, kept for context.
 
 The workshop wraps it with two commands that use **git branch name** as the measurement
@@ -308,9 +308,9 @@ The harness also prints the SDK's own per-run `usage` / `total_cost_usd` as a cr
 
 ### 5.2 The quality gate
 
-`npm run scenario:verify` — hidden mandatory tests + typecheck + lint. The agent cannot
-edit these tests (they live in `workshop/checkpoints/` and are tool-blocked). This
-prevents the agent from "passing" by writing weak tests.
+The quality gate (run automatically inside `workshop:run*`) — mandatory tests + typecheck + lint.
+The agent cannot edit these tests (they live outside its working dir). This prevents the agent from
+"passing" by writing weak tests.
 
 ### 5.3 Honesty about non-determinism
 

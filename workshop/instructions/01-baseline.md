@@ -24,8 +24,9 @@ While it waits, in a **second terminal**:
    them into **confluence** / **sentry** / **testrail**, and writes the fix, then reports done.
 4. When it's done, **close the agent** and press **Enter** back in the first terminal.
 
-The runner reads **only your session's** usage, runs `scenario:verify`, and prints your delta. The
-quality gate **must PASS** — if not, the run doesn't count (`npm run scenario:reset` and try again).
+The runner reads **only your session's** usage, runs the quality gate, and prints your delta. The
+gate **must PASS** — if not, the run doesn't count; the runner resets the baseline each time, so just
+re-run it.
 
 ## Record the baseline
 
@@ -39,8 +40,8 @@ From the output, write down:
 > — it means a stable prompt prefix was reused. Watch how it changes when you optimize.
 
 > Agent notes — **Claude**: launch with the printed `--session-id <id>`; usage is read from that one
-> session's transcript (isolated — other claude windows don't pollute it). **Codex**: launch from
-> `apps/angular-demo/` with `-c log_dir=../.codex-log` so logs land in repo-root `.codex-log/` and
-> usage is parsed. **cursor-agent**: token delta is unavailable; the gate still scores your run.
+> session's transcript (isolated — other claude windows don't pollute it). **Codex**: launch `codex`
+> from `apps/angular-demo/`; usage is parsed from its newest session rollout (`~/.codex/sessions/`).
+> **cursor-agent**: token delta is unavailable; the gate still scores your run.
 
 Next: [`02-optimize.md`](./02-optimize.md).

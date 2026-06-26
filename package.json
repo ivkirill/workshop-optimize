@@ -13,6 +13,11 @@
   "scripts": {
     "start": "npm start --workspace @workshop/angular-demo",
     "build": "npm run build --workspace @workshop/angular-demo",
+    "proxy:setup": "cp apps/angular-demo/.mcp-proxy.json apps/angular-demo/.mcp.json && echo \"✅ .mcp.json → proxy (localhost:9100). Edit servers/proxy/src/index.ts, then: npm run proxy:rebuild\"",
+    "proxy:rebuild": "docker compose up -d --build proxy",
+    "proxy:reset": "git checkout apps/angular-demo/.mcp.json && echo \"✅ .mcp.json → direct (9001-9005)\"",
+    "hooks:setup": "tsx workshop/cli/hooks-setup.ts",
+    "hooks:reset": "tsx workshop/cli/hooks-reset.ts",
     "workshop:doctor": "tsx workshop/facilitator/doctor.ts",
     "typecheck": "tsc -p tsconfig.json --noEmit",
     "test": "npm test --workspaces --if-present",

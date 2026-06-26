@@ -6,8 +6,8 @@ read from each run's own session transcript / logs (and pushed to Grafana). You 
 the agent, measure what it cost, apply the optimizations we teach, re-run, and **prove you spent
 fewer tokens for the same correct result.**
 
-> A token reduction that breaks the solution does not count. Correctness is decided by
-> `npm run scenario:verify` (mandatory tests + typecheck + lint).
+> A token reduction that breaks the solution does not count. Correctness is decided by a quality
+> gate (tests + typecheck + lint) that `workshop:run*` runs automatically after your agent finishes.
 
 ## Prerequisites
 
@@ -15,9 +15,8 @@ fewer tokens for the same correct result.**
 - **One coding agent** installed and authenticated:
   - **Claude Code** (`ANTHROPIC_API_KEY`) — launch with the `--session-id <id>` printed by
     `workshop:run*`; usage is read from that one session's transcript (isolated from other windows).
-  - **Codex** — usage parsed from session logs. The agent runs from `apps/angular-demo/`, so
-    launch it with `codex -c log_dir=../.codex-log` (logs land in the repo-root `.codex-log/`,
-    where the harness reads them) — or set an **absolute** `log_dir` in `~/.codex/config.toml`.
+  - **Codex** — usage parsed from its session rollout (`~/.codex/sessions/`). Just launch `codex`
+    from `apps/angular-demo/`; the harness picks up the newest session automatically.
   - **cursor-agent** — gate-only (CLI doesn't expose token counts).
 
 ## Quick start
@@ -92,9 +91,7 @@ npm run setup:docker          # Start containers only
 npm run setup:mcp             # Register MCP for Codex/Cursor
 npm run variant -- 1|2|3      # Pick task
 npm run workshop:doctor       # Preflight check
-npm run workshop:run1|2|3     # Measured runs
-npm run scenario:verify       # Quality gate
-npm run scenario:reset        # Restore buggy baseline
+npm run workshop:run1|2|3     # Measured runs (gate runs automatically inside)
 ```
 
 ## Agent working directory

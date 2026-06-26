@@ -1,13 +1,13 @@
 /**
- * afterMCPExecution hook for Cursor — compacts bloated MCP tool responses
- * before they enter the agent's context.
+ * Cursor afterMCPExecution hook — scaffold (passthrough by default).
  *
- * Cursor passes a JSON event on stdin with MCP tool result data.
- * The hook reads it, compacts the response, and writes the result to stdout.
+ * Cursor passes a JSON event on stdin with the MCP tool result in `response` (string) or `result`
+ * (object). Rewrite it and print to stdout; exit 0 → cursor uses your output. The default below
+ * returns the response unchanged (passthrough).
  *
- * Exit codes: 0 → use output JSON; 2 → block; other → pass through.
+ * Run 3 exercise: fill in `compactResponse` to strip bloat / truncate per tool before the result
+ * reaches the agent's context. Reference answer: workshop/hooks/compact-mcp.cursor.ts.
  */
-
 interface HookEvent {
   tool_name?: string;
   tool_input?: Record<string, unknown>;
@@ -15,105 +15,25 @@ interface HookEvent {
   result?: unknown;
 }
 
-// ── Compactors ────────────────────────────────────────────────────────
-
-function compactJira(response: string): string {
-  try {
-    const data = JSON.parse(response);
-    if (data?.fields) {
-      const { summary, description, definitionOfDone, relatedResources } = data.fields;
-      return JSON.stringify({ summary, description, definitionOfDone, relatedResources });
-    }
-  } catch {}
-  return response;
-}
-
-function compactConfluence(response: string): string {
-  try {
-    const data = JSON.parse(response);
-    if (data?.body) {
-      return JSON.stringify({ title: data.title, body: String(data.body).substring(0, 2000), space: data.space });
-    }
-  } catch {}
-  return response;
-}
-
-function compactSentry(response: string): string {
-  try {
-    const data = JSON.parse(response);
-    return JSON.stringify({
-      title: data.title,
-      culprit: data.culprit,
-      message: data.message,
-      frames: (data.entries as Array<Record<string, unknown>>)?.[0]?.data?.values?.[0]?.stacktrace?.frames?.slice(0, 3),
-    });
-  } catch {}
-  return response;
-}
-
-function compactTestrail(response: string): string {
-  try {
-    const data = JSON.parse(response);
-    if (data?.cases) {
-      return JSON.stringify({
-        suiteId: data.suiteId,
-        size: data.size,
-        cases: (data.cases as Array<Record<string, unknown>>).map((c) => ({ id: c.id, title: c.title, priority: c.priority })),
-      });
-    }
-    if (data?.results) {
-      return JSON.stringify({
-        runId: data.runId,
-        summary: data.summary,
-        results: (data.results as Array<Record<string, unknown>>).map((r) => ({
-          test_id: r.test_id, title: r.title, status: r.status,
-        })),
-      });
-    }
-  } catch {}
-  return response;
-}
-
-function compactGeneric(response: string): string {
-  if (response.length > 5000) {
-    return response.substring(0, 5000) + "\n\n... [truncated by cursor hook]";
-  }
-  return response;
-}
-
 function compactResponse(event: HookEvent): string {
-  const rawResponse = event.response || (event.result ? JSON.stringify(event.result) : "");
-  if (!rawResponse) return "";
-
-  const name = event.tool_name || "";
-
-  if (name.startsWith("mcp__jira")) return compactJira(rawResponse);
-  if (name.startsWith("mcp__confluence")) return compactConfluence(rawResponse);
-  if (name.startsWith("mcp__sentry")) return compactSentry(rawResponse);
-  if (name.startsWith("mcp__testrail")) return compactTestrail(rawResponse);
-  if (name.startsWith("mcp__")) return compactGeneric(rawResponse);
-
-  return rawResponse;
+  // TODO (Run 3): compact based on event.tool_name (mcp__jira / mcp__confluence / …).
+  // Passthrough for now — returns the raw response unchanged.
+  return event.response ?? (event.result !== undefined ? JSON.stringify(event.result) : "");
 }
-
-// ── Main ──────────────────────────────────────────────────────────────
 
 let input = "";
 process.stdin.on("data", (chunk: Buffer) => { input += chunk.toString(); });
 process.stdin.on("end", () => {
   try {
     const event: HookEvent = JSON.parse(input);
-
     if (event.response !== undefined) {
       event.response = compactResponse(event);
     } else if (event.result !== undefined) {
       event.result = JSON.parse(compactResponse(event));
     }
-
     process.stdout.write(JSON.stringify(event));
     process.exit(0);
   } catch {
-    // Pass through unmodified if we can't parse
     process.stdout.write(input);
     process.exit(0);
   }

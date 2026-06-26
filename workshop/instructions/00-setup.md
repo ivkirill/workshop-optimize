@@ -7,9 +7,8 @@
   the point: you see and control it):
   - **Claude Code** (`ANTHROPIC_API_KEY`) — launch with the `--session-id <id>` printed by
     `workshop:run*`; usage is read from that one session's transcript (isolated from other windows).
-  - **Codex** — usage parsed from session logs. The agent runs from `apps/angular-demo/`, so launch
-    with `codex -c log_dir=../.codex-log` (logs land in repo-root `.codex-log/`) — or set an
-    **absolute** `log_dir` in `~/.codex/config.toml`.
+  - **Codex** — usage parsed from its session rollout (`~/.codex/sessions/`). Launch `codex` from
+    `apps/angular-demo/`; the harness picks up the newest session automatically.
   - **cursor-agent** — supported, but token usage isn't exposed → **gate-only** (no token delta).
 - `npx` available (used to run `ccusage`; nothing to install).
 
@@ -43,13 +42,10 @@ npm run variant -- 1     # 1 catalog pagination · 2 orders search · 3 edit car
 This writes `TASK.md` (ticket number + how to run/verify) and sets the active scenario. Open the
 app and click into your feature to see the bug.
 
-## Know the quality gate
+## The quality gate
 
-```bash
-npm run scenario:verify
-```
-
-On the shipped (buggy) code this prints `quality gate: FAIL` — the hidden mandatory tests catch the
-bug. Your job is to make it `PASS`, for as few tokens as you can.
+The runner grades every measured run with a quality gate (tests + typecheck + lint) — it runs
+automatically inside `workshop:run*`, you don't invoke it yourself. On the shipped (buggy) code the
+gate FAILs; your job is to make it PASS, for as few tokens as you can.
 
 Next: [`01-baseline.md`](./01-baseline.md).

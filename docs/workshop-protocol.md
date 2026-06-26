@@ -30,7 +30,7 @@ AGENTS.md, строит прокси и решает задачу впереме
 | Агент | Измерение | Что настроить до воркшопа |
 |---|---|---|
 | **Claude Code** | `ccusage` авто | Ничего |
-| **Codex** | `.codex-log/` в корне репо | запуск из `apps/angular-demo/` с `-c log_dir=../.codex-log` (или абсолютный `log_dir` в `~/.codex/config.toml`) |
+| **Codex** | session rollout `~/.codex/sessions/` | запуск `codex` из `apps/angular-demo/` (харнесс берёт новейшую сессию) |
 | **Cursor** | Gate-only | Ничего |
 
 ---
@@ -50,7 +50,7 @@ npm run workshop:run1
 4. Ждёт Enter
 5. 📸 снапшот ПОСЛЕ
 6. Вычисляет дельту
-7. `scenario:verify`
+7. Прогоняет quality gate (tests + typecheck + lint)
 8. Сохраняет в `.workshop/run-run1.json`
 
 Участник в это время: переходит в `apps/angular-demo/`, открывает агента, пишет промпт,
@@ -90,14 +90,14 @@ npm run workshop:run3
 
 ## Что делает `workshop:run*` (внутреннее устройство)
 
-```bash
-# Эквивалент ручных команд:
-npm run scenario:reset
-# ← скрипт делает снапшот ДО
-# ← участник открывает Claude Code, решает задачу, закрывает
-# ← скрипт делает снапшот ПОСЛЕ и вычисляет дельту
-npm run scenario:verify
-# ← результат сохраняется в .workshop/
+```text
+# Что делает runner внутри (отдельных npm-команд для этого нет):
+#  1. сбрасывает багованный baseline активного сценария
+#  2. снапшот ДО
+#  3. участник открывает агента, решает задачу, закрывает
+#  4. снапшот ПОСЛЕ → вычисляет дельту
+#  5. прогоняет quality gate (tests + typecheck + lint)
+#  6. результат сохраняется в .workshop/
 ```
 
 ---

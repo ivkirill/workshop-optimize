@@ -1,7 +1,7 @@
 # 02 — Optimize, then prove it
 
-Two layers of optimization, each its own measured run. After every run `scenario:verify` **must
-still PASS** — a cheaper run that breaks the solution does not count.
+Two layers of optimization, each its own measured run. After every run the quality gate **must still
+PASS** — a cheaper run that breaks the solution does not count.
 
 You stay on the **same git branch** throughout — there is **no branch switching**. Edit `AGENTS.md` /
 build the proxy **in place**; `workshop:run*` resets the buggy baseline itself before each run. Each
@@ -33,11 +33,21 @@ sentry/testrail) — those raw payloads still fill the context every turn. That'
 Build a thin layer that compacts the bloated MCP responses **before** they reach the agent. Pick one
 (this build is not measured):
 
-- **Option A — Proxy-MCP**: a small service between the agent and the 5 MCP servers that truncates,
-  field-filters, and summarizes responses (and can dedup across calls). Register it via
-  `.mcp-proxy.json`.
-- **Option B — Local hooks**: a `PostToolUse` hook in `.claude/hooks/` that transforms each tool
-  result inline — same idea, no separate service, but stateless.
+- **Option A — MCP proxy** (`servers/proxy/`): a 6th service already running on `:9100` as a
+  **passthrough болванка** between the agent and the 5 MCP servers. Point the agent at it, then add
+  truncation / field-filtering / summary in the `callTool` forward:
+  ```bash
+  npm run proxy:setup      # swaps apps/angular-demo/.mcp.json → the proxy (localhost:9100)
+  #   → edit servers/proxy/src/index.ts (add stripBloat/truncate/summary to the forward)
+  npm run proxy:rebuild    # rebuild the proxy container with your changes
+  #   npm run proxy:reset   → back to the direct servers
+  ```
+- **Option B — agent hooks**: a passthrough hook scaffold ships per agent — fill in the compactor
+  (reference answers in `workshop/hooks/`):
+  - **Claude** — `workshop/hooks/post-tool-use.ts`, activated via `.claude/hooks/`.
+  - **Codex** — `apps/angular-demo/.codex/hooks/post-tool-use.ts`, enabled in `.codex/hooks.json`
+    (codex can only *replace* a result via `decision:"block"`, not transparently rewrite it).
+  - **Cursor** — `apps/angular-demo/.cursor/hooks/compact-mcp.ts`, wired in `.cursor/hooks.json`.
 
 Then:
 

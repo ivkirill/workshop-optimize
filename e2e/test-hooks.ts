@@ -25,7 +25,7 @@ const SEED = Math.random().toString(36).slice(2, 8);
 
 // ── Prompt: force agent to use all 5 bloated MCP servers ──────────────
 
-const TASK_PROMPT = `[${SEED}] Read TASK.md and apply all fixes described in the acceptance criteria. Do not change the public API contract or add runtime dependencies. Verify with npm run scenario:verify.`;
+const TASK_PROMPT = `[${SEED}] Read TASK.md and apply all fixes described in the acceptance criteria. Do not change the public API contract or add runtime dependencies. Report what changed when done.`;
 
 // No tool restrictions — agent needs full access to fix code.
 
