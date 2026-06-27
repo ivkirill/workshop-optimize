@@ -18,12 +18,17 @@ import { StreamableHTTPServerTransport } from "@modelcontextprotocol/sdk/server/
 import { Client } from "@modelcontextprotocol/sdk/client/index.js";
 import { StreamableHTTPClientTransport } from "@modelcontextprotocol/sdk/client/streamableHttp.js";
 import { ListToolsRequestSchema, CallToolRequestSchema } from "@modelcontextprotocol/sdk/types.js";
+import { createHash } from "node:crypto";
 
 const UPSTREAM: Record<string, number> = { jira: 9001, github: 9002, confluence: 9003, sentry: 9004, testrail: 9005 };
 const PORT = Number(process.env.PORT ?? 9100);
 const COMPACT = process.env.COMPACT === "1";
 // In docker-compose each MCP service is reachable by its name (jira:9001, …); on the host it's localhost.
 const IN_DOCKER = process.env.IN_DOCKER === "1";
+
+// Dedup/Cache (STATEFUL — a proxy can do this, a stateless per-call hook can't): identical
+// (target, tool, args) seen this session → skip the upstream payload, return a tiny marker.
+const seen = new Set<string>();
 
 // ── Compaction (the Run 3 "solution"; passthrough leaves it off) ────────
 // Field filtering: drop the metadataBloat fields + bloat arrays the agent never uses.
@@ -61,6 +66,21 @@ function compactResult<T>(result: T): T {
   return { ...result, content: compacted } as T;
 }
 
+/** Schema compaction (STATEFUL-side win): drop the FILLER tail from each tool description so the
+ * tool schema — re-sent to the model every turn — shrinks. Hooks never see tool schemas. */
+function compactToolList<T extends { tools?: unknown }>(list: T): T {
+  if (!Array.isArray(list.tools)) return list;
+  const tools = list.tools.map((t) => {
+    if (!t || typeof t !== "object") return t;
+    const tool = t as { description?: unknown };
+    if (typeof tool.description === "string") {
+      return { ...tool, description: tool.description.slice(0, 160).replace(/\s+\S*$/, "") };
+    }
+    return t;
+  });
+  return { ...list, tools };
+}
+
 // ── Upstream clients (lazy, cached per target across requests) ──────────
 const clients = new Map<string, Promise<Client>>();
 function upstream(target: string): Promise<Client> {
@@ -88,10 +108,19 @@ app.post("/mcp", async (req, res) => {
   }
 
   const server = new Server({ name: `proxy:${target}`, version: "1.0.0" }, { capabilities: { tools: {} } });
-  server.setRequestHandler(ListToolsRequestSchema, async () => (await upstream(target)).listTools());
+  server.setRequestHandler(ListToolsRequestSchema, async () => {
+    const list = await (await upstream(target)).listTools();
+    return COMPACT ? compactToolList(list) : list; // schema compaction
+  });
   server.setRequestHandler(CallToolRequestSchema, async (request) => {
-    const result = await (await upstream(target)).callTool(request.params);
-    return COMPACT ? compactResult(result) : result;
+    if (!COMPACT) return (await upstream(target)).callTool(request.params);
+    // Dedup: identical call already made this session → don't re-send the payload.
+    const key = createHash("sha256").update(`${target}|${JSON.stringify(request.params)}`).digest("hex");
+    if (seen.has(key)) {
+      return { content: [{ type: "text", text: JSON.stringify({ _unchanged: true, _note: "identical to an earlier call this session — result omitted to save tokens" }) }] };
+    }
+    seen.add(key);
+    return compactResult(await (await upstream(target)).callTool(request.params)); // field-filter (+ dedup + schema above)
   });
 
   const transport = new StreamableHTTPServerTransport({ sessionIdGenerator: undefined });

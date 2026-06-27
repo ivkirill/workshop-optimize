@@ -57,6 +57,18 @@ function activeScenario(): string {
   return "catalog-pagination";
 }
 
+/** Which lever this run exercises — labels the Grafana metric (esp. Run 3: proxy vs hooks). */
+function detectLever(): string {
+  if (RUN_NUM === "1") return "baseline";
+  if (RUN_NUM === "2") return "hygiene";
+  // Run 3 — detect the active tool layer
+  try {
+    if (readFileSync(join(APP_DIR, ".mcp.json"), "utf8").includes("9100")) return "proxy";
+  } catch { /* no .mcp.json */ }
+  if (existsSync(join(APP_DIR, ".claude", "hooks", "post-tool-use.ts"))) return "hooks";
+  return "tool-layer";
+}
+
 // ── saved deltas ───────────────────────────────────────────────────────
 
 const SAVE_DIR = join(REPO_ROOT, ".workshop");
@@ -172,7 +184,7 @@ async function main() {
   saveDelta(d);
 
   sendWorkshopMetric({
-    run: Number(RUN_NUM), agent, user: gitUser, task: activeScenario(),
+    run: Number(RUN_NUM), agent, user: gitUser, task: activeScenario(), lever: detectLever(),
     inputTokens: d.inputTokens, outputTokens: d.outputTokens,
     cacheReadTokens: d.cacheReadTokens, cacheWriteTokens: d.cacheCreationTokens,
     totalTokens: d.totalTokens, totalCost: d.totalCost, gatePassed,

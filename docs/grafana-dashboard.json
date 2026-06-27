@@ -156,7 +156,7 @@
           },
           "editorMode": "code",
           "exemplar": false,
-          "expr": "max_over_time(workshop_total_tokens_ratio[$__range])",
+          "expr": "max_over_time(workshop_total_tokens_ratio{user=~\"$user\", agent=~\"$agent\", task=~\"$task\", run=~\"$run\", lever=~\"$lever\"}[$__range])",
           "format": "table",
           "instant": true,
           "legendFormat": "__auto",
@@ -170,7 +170,7 @@
           },
           "editorMode": "code",
           "exemplar": false,
-          "expr": "max_over_time(workshop_cost_usd_USD[$__range])",
+          "expr": "max_over_time(workshop_cost_usd_USD{user=~\"$user\", agent=~\"$agent\", task=~\"$task\", run=~\"$run\", lever=~\"$lever\"}[$__range])",
           "format": "table",
           "instant": true,
           "legendFormat": "__auto",
@@ -184,7 +184,7 @@
           },
           "editorMode": "code",
           "exemplar": false,
-          "expr": "max_over_time(workshop_gate_passed_ratio[$__range])",
+          "expr": "max_over_time(workshop_gate_passed_ratio{user=~\"$user\", agent=~\"$agent\", task=~\"$task\", run=~\"$run\", lever=~\"$lever\"}[$__range])",
           "format": "table",
           "instant": true,
           "legendFormat": "__auto",
@@ -303,7 +303,7 @@
           },
           "editorMode": "code",
           "exemplar": false,
-          "expr": "max_over_time(workshop_total_tokens_ratio[$__range])",
+          "expr": "max_over_time(workshop_total_tokens_ratio{user=~\"$user\", agent=~\"$agent\", task=~\"$task\", run=~\"$run\", lever=~\"$lever\"}[$__range])",
           "instant": true,
           "legendFormat": "{{agent}} {{task}} {{run_id}}",
           "range": false,
@@ -443,16 +443,75 @@
           },
           "editorMode": "code",
           "exemplar": false,
-          "expr": "sum by (user, run) (max_over_time(workshop_total_tokens_ratio{task=~\"$task\"}[$__range]))",
+          "expr": "sum by (user, run) (max_over_time(workshop_total_tokens_ratio{user=~\"$user\", agent=~\"$agent\", task=~\"$task\", run=\"1\", lever=~\"$lever\"}[$__range]))",
           "format": "table",
           "instant": true,
           "range": false,
           "refId": "A"
+        },
+        {
+          "datasource": {
+            "type": "prometheus",
+            "uid": "${DS_PROMETHEUS}"
+          },
+          "editorMode": "code",
+          "exemplar": false,
+          "expr": "sum by (user, run) (max_over_time(workshop_total_tokens_ratio{user=~\"$user\", agent=~\"$agent\", task=~\"$task\", run=\"2\", lever=~\"$lever\"}[$__range]))",
+          "format": "table",
+          "instant": true,
+          "range": false,
+          "refId": "B"
+        },
+        {
+          "datasource": {
+            "type": "prometheus",
+            "uid": "${DS_PROMETHEUS}"
+          },
+          "editorMode": "code",
+          "exemplar": false,
+          "expr": "sum by (user, run) (max_over_time(workshop_total_tokens_ratio{user=~\"$user\", agent=~\"$agent\", task=~\"$task\", run=\"3\", lever=~\"$lever\"}[$__range]))",
+          "format": "table",
+          "instant": true,
+          "range": false,
+          "refId": "C"
+        },
+        {
+          "datasource": {
+            "type": "prometheus",
+            "uid": "${DS_PROMETHEUS}"
+          },
+          "editorMode": "code",
+          "exemplar": false,
+          "expr": "sum by (user, run) (max_over_time(workshop_total_tokens_ratio{user=~\"$user\", agent=~\"$agent\", task=~\"$task\", run=\"99\", lever=~\"$lever\"}[$__range]))",
+          "format": "table",
+          "instant": true,
+          "range": false,
+          "refId": "D"
         }
       ],
       "title": "Token Breakdown",
       "type": "barchart",
       "transformations": [
+        {
+          "id": "merge",
+          "options": {}
+        },
+        {
+          "id": "calculateField",
+          "options": {
+            "mode": "reduceRow",
+            "reduce": {
+              "reducer": "max",
+              "include": [
+                "Value #A",
+                "Value #B",
+                "Value #C",
+                "Value #D"
+              ]
+            },
+            "alias": "Value"
+          }
+        },
         {
           "id": "groupingToMatrix",
           "options": {
@@ -473,6 +532,72 @@
   ],
   "templating": {
     "list": [
+      {
+        "current": {},
+        "hide": 2,
+        "includeAll": false,
+        "label": "Prometheus data source",
+        "multi": false,
+        "name": "DS_PROMETHEUS",
+        "options": [],
+        "query": "prometheus",
+        "refresh": 1,
+        "regex": "",
+        "skipUrlSync": false,
+        "type": "datasource"
+      },
+      {
+        "datasource": {
+          "type": "prometheus",
+          "uid": "${DS_PROMETHEUS}"
+        },
+        "definition": "label_values(workshop_total_tokens_ratio, user)",
+        "hide": 0,
+        "includeAll": true,
+        "label": "User",
+        "multi": true,
+        "name": "user",
+        "options": [],
+        "query": {
+          "query": "label_values(workshop_total_tokens_ratio, user)",
+          "refId": "StandardVariableQuery"
+        },
+        "refresh": 2,
+        "regex": "",
+        "sort": 1,
+        "type": "query",
+        "allValue": ".+",
+        "current": {
+          "text": "All",
+          "value": "$__all"
+        }
+      },
+      {
+        "datasource": {
+          "type": "prometheus",
+          "uid": "${DS_PROMETHEUS}"
+        },
+        "definition": "label_values(workshop_total_tokens_ratio, agent)",
+        "hide": 0,
+        "includeAll": true,
+        "label": "Agent",
+        "multi": true,
+        "name": "agent",
+        "options": [],
+        "query": {
+          "query": "label_values(workshop_total_tokens_ratio, agent)",
+          "refId": "StandardVariableQuery"
+        },
+        "refresh": 2,
+        "regex": "",
+        "sort": 1,
+        "type": "query",
+        "allValue": ".+",
+        "current": {
+          "text": "All",
+          "value": "$__all"
+        }
+      },
       {
         "datasource": {
           "type": "prometheus",
@@ -500,18 +625,56 @@
         }
       },
       {
-        "current": {},
+        "datasource": {
+          "type": "prometheus",
+          "uid": "${DS_PROMETHEUS}"
+        },
+        "definition": "label_values(workshop_total_tokens_ratio, run)",
         "hide": 0,
-        "includeAll": false,
-        "label": "Prometheus data source",
-        "multi": false,
-        "name": "DS_PROMETHEUS",
+        "includeAll": true,
+        "label": "Run",
+        "multi": true,
+        "name": "run",
         "options": [],
-        "query": "prometheus",
-        "refresh": 1,
+        "query": {
+          "query": "label_values(workshop_total_tokens_ratio, run)",
+          "refId": "StandardVariableQuery"
+        },
+        "refresh": 2,
         "regex": "",
-        "skipUrlSync": false,
-        "type": "datasource"
+        "sort": 3,
+        "type": "query",
+        "allValue": ".+",
+        "current": {
+          "text": "All",
+          "value": "$__all"
+        }
+      },
+      {
+        "datasource": {
+          "type": "prometheus",
+          "uid": "${DS_PROMETHEUS}"
+        },
+        "definition": "label_values(workshop_total_tokens_ratio, lever)",
+        "hide": 0,
+        "includeAll": true,
+        "label": "Lever",
+        "multi": true,
+        "name": "lever",
+        "options": [],
+        "query": {
+          "query": "label_values(workshop_total_tokens_ratio, lever)",
+          "refId": "StandardVariableQuery"
+        },
+        "refresh": 2,
+        "regex": "",
+        "sort": 1,
+        "type": "query",
+        "allValue": ".+",
+        "current": {
+          "text": "All",
+          "value": "$__all"
+        }
       }
     ]
   },

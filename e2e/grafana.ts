@@ -62,6 +62,7 @@ export interface WorkshopMetric {
   totalTokens: number;
   totalCost: number;
   gatePassed: boolean;
+  lever?: string;         // "baseline" | "hygiene" | "proxy" | "hooks" — which Run 3 lever (or stage)
 }
 
 function getGitUser(): string {
@@ -101,93 +102,32 @@ export function sendWorkshopMetric(m: WorkshopMetric): void {
 
   const auth = Buffer.from(`${GRAFANA_USER}:${GRAFANA_TOKEN}`).toString("base64");
 
+  // Shared label set on every dataPoint. `lever` distinguishes the Run 3 tool layer (proxy vs hooks)
+  // and labels Run 1/2 (baseline/hygiene); `run_id` keeps each push its own Prometheus series.
+  const attrs = [
+    { key: "run", value: { stringValue: String(m.run) } },
+    { key: "agent", value: { stringValue: m.agent } },
+    { key: "user", value: { stringValue: m.user } },
+    { key: "task", value: { stringValue: m.task } },
+    { key: "lever", value: { stringValue: m.lever ?? "" } },
+    { key: "run_id", value: { stringValue: runId } },
+  ];
+  const intGauge = (v: number) => ({ dataPoints: [{ asInt: v, timeUnixNano: nanos(), attributes: attrs }] });
+  const dblGauge = (v: number) => ({ dataPoints: [{ asDouble: v, timeUnixNano: nanos(), attributes: attrs }] });
+
   const payload = {
     resourceMetrics: [{
-      resource: {
-        attributes: [
-          { key: "service.name", value: { stringValue: "workshop" } },
-        ]
-      },
+      resource: { attributes: [{ key: "service.name", value: { stringValue: "workshop" } }] },
       scopeMetrics: [{
         scope: { name: "workshop" },
         metrics: [
-          {
-            name: "workshop_input_tokens",
-            unit: "1",
-            gauge: { dataPoints: [{ asInt: m.inputTokens, timeUnixNano: nanos(), attributes: [
-              { key: "run", value: { stringValue: String(m.run) } },
-              { key: "agent", value: { stringValue: m.agent } },
-              { key: "user", value: { stringValue: m.user } },
-              { key: "task", value: { stringValue: m.task } },
-              { key: "run_id", value: { stringValue: runId } },
-            ]}]}
-          },
-          {
-            name: "workshop_output_tokens",
-            unit: "1",
-            gauge: { dataPoints: [{ asInt: m.outputTokens, timeUnixNano: nanos(), attributes: [
-              { key: "run", value: { stringValue: String(m.run) } },
-              { key: "agent", value: { stringValue: m.agent } },
-              { key: "user", value: { stringValue: m.user } },
-              { key: "task", value: { stringValue: m.task } },
-              { key: "run_id", value: { stringValue: runId } },
-            ]}]}
-          },
-          {
-            name: "workshop_cache_read_tokens",
-            unit: "1",
-            gauge: { dataPoints: [{ asInt: m.cacheReadTokens, timeUnixNano: nanos(), attributes: [
-              { key: "run", value: { stringValue: String(m.run) } },
-              { key: "agent", value: { stringValue: m.agent } },
-              { key: "user", value: { stringValue: m.user } },
-              { key: "task", value: { stringValue: m.task } },
-              { key: "run_id", value: { stringValue: runId } },
-            ]}]}
-          },
-          {
-            name: "workshop_cache_write_tokens",
-            unit: "1",
-            gauge: { dataPoints: [{ asInt: m.cacheWriteTokens, timeUnixNano: nanos(), attributes: [
-              { key: "run", value: { stringValue: String(m.run) } },
-              { key: "agent", value: { stringValue: m.agent } },
-              { key: "user", value: { stringValue: m.user } },
-              { key: "task", value: { stringValue: m.task } },
-              { key: "run_id", value: { stringValue: runId } },
-            ]}]}
-          },
-          {
-            name: "workshop_total_tokens",
-            unit: "1",
-            gauge: { dataPoints: [{ asInt: m.totalTokens, timeUnixNano: nanos(), attributes: [
-              { key: "run", value: { stringValue: String(m.run) } },
-              { key: "agent", value: { stringValue: m.agent } },
-              { key: "user", value: { stringValue: m.user } },
-              { key: "task", value: { stringValue: m.task } },
-              { key: "run_id", value: { stringValue: runId } },
-            ]}]}
-          },
-          {
-            name: "workshop_cost_usd",
-            unit: "USD",
-            gauge: { dataPoints: [{ asDouble: m.totalCost, timeUnixNano: nanos(), attributes: [
-              { key: "run", value: { stringValue: String(m.run) } },
-              { key: "agent", value: { stringValue: m.agent } },
-              { key: "user", value: { stringValue: m.user } },
-              { key: "task", value: { stringValue: m.task } },
-              { key: "run_id", value: { stringValue: runId } },
-            ]}]}
-          },
-          {
-            name: "workshop_gate_passed",
-            unit: "1",
-            gauge: { dataPoints: [{ asInt: m.gatePassed ? 1 : 0, timeUnixNano: nanos(), attributes: [
-              { key: "run", value: { stringValue: String(m.run) } },
-              { key: "agent", value: { stringValue: m.agent } },
-              { key: "user", value: { stringValue: m.user } },
-              { key: "task", value: { stringValue: m.task } },
-              { key: "run_id", value: { stringValue: runId } },
-            ]}]}
-          },
+          { name: "workshop_input_tokens", unit: "1", gauge: intGauge(m.inputTokens) },
+          { name: "workshop_output_tokens", unit: "1", gauge: intGauge(m.outputTokens) },
+          { name: "workshop_cache_read_tokens", unit: "1", gauge: intGauge(m.cacheReadTokens) },
+          { name: "workshop_cache_write_tokens", unit: "1", gauge: intGauge(m.cacheWriteTokens) },
+          { name: "workshop_total_tokens", unit: "1", gauge: intGauge(m.totalTokens) },
+          { name: "workshop_cost_usd", unit: "USD", gauge: dblGauge(m.totalCost) },
+          { name: "workshop_gate_passed", unit: "1", gauge: intGauge(m.gatePassed ? 1 : 0) },
         ]
       }]
     }]

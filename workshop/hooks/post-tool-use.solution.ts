@@ -12,6 +12,11 @@
  * Stdin: { tool_name: "mcp__<server>__<tool>", tool_response: [{ type:"text", text:"<json>" }], ... }.
  */
 
+import { existsSync, readFileSync, writeFileSync } from "node:fs";
+import { createHash } from "node:crypto";
+import { tmpdir } from "node:os";
+import { join } from "node:path";
+
 type JsonRecord = Record<string, unknown>;
 
 const STRIP_KEYS = new Set([
@@ -148,16 +153,36 @@ function compactToolResponse(toolName: string, toolResponse: unknown): string | 
   return compacted.length < before ? compacted : null;
 }
 
+/**
+ * Dedup — the stateless workaround. A hook is a fresh process per call with NO memory, so we FAKE
+ * state with a per-session file on disk: if the same (tool, input) was seen this session, return a
+ * tiny "unchanged" marker instead of the payload. Caveats a proxy doesn't have: racy under parallel
+ * tools, and the file lingers in tmp. (A proxy keeps this in memory — see servers/proxy.)
+ */
+function dedupMarker(name: string, input: unknown, sessionId?: string): string | null {
+  if (!sessionId) return null;
+  const file = join(tmpdir(), `claude-hook-dedup-${sessionId}.json`);
+  const key = createHash("sha256").update(`${name}|${JSON.stringify(input)}`).digest("hex");
+  let seen: string[] = [];
+  try { if (existsSync(file)) seen = JSON.parse(readFileSync(file, "utf8")); } catch { /* fresh */ }
+  if (seen.includes(key)) {
+    return JSON.stringify({ _unchanged: true, _note: "identical to an earlier call this session — result omitted to save tokens" });
+  }
+  try { seen.push(key); writeFileSync(file, JSON.stringify(seen)); } catch { /* best effort */ }
+  return null;
+}
+
 // ── Main ──────────────────────────────────────────────────────────────
 
 let input = "";
 process.stdin.on("data", (chunk: Buffer) => { input += chunk.toString(); });
 process.stdin.on("end", () => {
   try {
-    const e = JSON.parse(input) as { tool_name?: string; tool_response?: unknown };
+    const e = JSON.parse(input) as { tool_name?: string; tool_input?: unknown; tool_response?: unknown; session_id?: string };
     const name = e.tool_name ?? "";
     if (name.startsWith("mcp__")) {
-      const updated = compactToolResponse(name, e.tool_response);
+      // Dedup first (cheapest), then field-filter + structured-summary + truncation.
+      const updated = dedupMarker(name, e.tool_input, e.session_id) ?? compactToolResponse(name, e.tool_response);
       if (updated !== null) {
         process.stdout.write(JSON.stringify({
           hookSpecificOutput: { hookEventName: "PostToolUse", updatedToolOutput: updated },
