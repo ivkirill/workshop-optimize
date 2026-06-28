@@ -15,6 +15,9 @@ measured. Then:
 
 ```bash
 npm run workshop:run2     # resets baseline, waits while you run the agent fresh, measures, compares to Run 1
+# Cursor: npm run agents:solution first (applies workshop/reference/AGENTS.optimized.md), then:
+# WORKSHOP_AGENT=cursor npm run workshop:run2
+# Facilitator эталон: npm run agents:solution
 ```
 
 | Lever | What to try | What it targets |
@@ -49,7 +52,21 @@ Build a thin layer that compacts the bloated MCP responses **before** they reach
   - **Claude** — `workshop/hooks/post-tool-use.ts`, activated via `.claude/hooks/`.
   - **Codex** — `apps/angular-demo/.codex/hooks/post-tool-use.ts`, enabled in `.codex/hooks.json`
     (codex can only *replace* a result via `decision:"block"`, not transparently rewrite it).
-  - **Cursor** — `apps/angular-demo/.cursor/hooks/compact-mcp.ts`, wired in `.cursor/hooks.json`.
+  - **Cursor** — `apps/angular-demo/.cursor/hooks/compact-mcp.ts`, wired in `.cursor/hooks.json`
+    (`afterMCPExecution`; MCP stays direct via `.cursor/mcp.json`). Allowlists in
+    `.cursor/cli.json` + `.cursor/permissions.json` (hook command: `npx:tsx .cursor/hooks/compact-mcp.ts`).
+    ```bash
+    npm run hooks:setup-cursor      # passthrough scaffold + register hook
+    #   → edit .cursor/hooks/compact-mcp.ts (reference: workshop/hooks/compact-mcp.cursor.ts)
+    #   npm run hooks:solution-cursor   → эталон (facilitator)
+    #   npm run hooks:reset-cursor      → disable hooks
+    ```
+  - **Cursor proxy** — point `.cursor/mcp.json` at `:9100`:
+    ```bash
+    npm run proxy:setup-cursor      # .cursor/mcp.json → proxy
+    #   npm run proxy:solution-cursor → эталон + rebuild
+    #   npm run proxy:reset-cursor    → direct MCP
+    ```
 
 Then:
 

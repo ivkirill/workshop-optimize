@@ -88,6 +88,19 @@ const checks: readonly Check[] = [
       ? { name: 'active task', status: 'ok', detail: 'TASK.md present (npm run variant -- N to pick)' }
       : { name: 'active task', status: 'warn', detail: 'no TASK.md — npm run variant -- 1' };
   },
+  function cursorConfig(): CheckResult {
+    const hasMcp = presentApp('.cursor/mcp.json');
+    const hasHook = presentApp('.cursor/hooks/compact-mcp.ts');
+    const hasCli = presentApp('.cursor/cli.json');
+    const hasPerms = presentApp('.cursor/permissions.json');
+    if (hasMcp && hasHook && hasCli && hasPerms) {
+      return { name: 'Cursor config (app)', status: 'ok', detail: '.cursor/mcp + cli.json + permissions.json + hooks' };
+    }
+    if (!hasMcp && !hasHook && !hasCli && !hasPerms) {
+      return { name: 'Cursor config (app)', status: 'warn', detail: 'run npm run proxy:direct-cursor' };
+    }
+    return { name: 'Cursor config (app)', status: 'warn', detail: 'incomplete .cursor/ — npm run proxy:direct-cursor' };
+  },
   function tracker(): CheckResult {
     try {
       const v = execFileSync('npx', ['--yes', 'ccusage@latest', '--version'], { encoding: 'utf8', timeout: 60000 }).trim();

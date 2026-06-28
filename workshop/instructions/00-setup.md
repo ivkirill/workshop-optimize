@@ -9,7 +9,10 @@
     `workshop:run*`; usage is read from that one session's transcript (isolated from other windows).
   - **Codex** — usage parsed from its session rollout (`~/.codex/sessions/`). Launch `codex` from
     `apps/angular-demo/`; the harness picks up the newest session automatically.
-  - **cursor-agent** — supported, but token usage isn't exposed → **gate-only** (no token delta).
+  - **cursor-agent** — quality gate auto; record tokens from
+    [cursor.com/dashboard/usage](https://cursor.com/dashboard/usage) using the `runStart` timestamp
+    printed by `WORKSHOP_AGENT=cursor npm run workshop:run*`. Baseline: `npm run proxy:direct-cursor && npm run hooks:reset-cursor`.
+    Allowlists are committed in `.cursor/cli.json` and `.cursor/permissions.json` (same MCP tools as Claude).
 - `npx` available (used to run `ccusage`; nothing to install).
 
 ## Install and check

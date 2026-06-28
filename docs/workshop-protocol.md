@@ -31,7 +31,7 @@ AGENTS.md, строит прокси и решает задачу впереме
 |---|---|---|
 | **Claude Code** | `ccusage` авто | Ничего |
 | **Codex** | session rollout `~/.codex/sessions/` | запуск `codex` из `apps/angular-demo/` (харнесс берёт новейшую сессию) |
-| **Cursor** | Gate-only | Ничего |
+| **Cursor** | [dashboard usage](https://cursor.com/dashboard/usage) вручную | `npm run proxy:direct-cursor`; `cursor-agent` из `apps/angular-demo/` |
 
 ---
 

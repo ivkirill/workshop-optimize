@@ -57,6 +57,12 @@ print('  Created ${CURSOR_MCP}')
 "
   fi
   echo "  Cursor MCP config ready"
+
+  # Project-level MCP for the workshop app (cli.json + permissions.json live in git)
+  PROJECT_MCP="$(cd "$(dirname "$0")/../.." && pwd)/apps/angular-demo/.cursor/mcp.json"
+  mkdir -p "$(dirname "${PROJECT_MCP}")"
+  cp "$(cd "$(dirname "$0")/.." && pwd)/proxy/cursor.direct.mcp.json" "${PROJECT_MCP}"
+  echo "  Project MCP → ${PROJECT_MCP}"
 else
   echo "  cursor-agent not found — skip"
 fi

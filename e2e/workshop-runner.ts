@@ -1,15 +1,16 @@
 /**
- * Workshop runner — measurement harness for Claude Code / Codex.
+ * Workshop runner — measurement harness for Claude Code / Codex / Cursor.
  *
  * All agents: interactive (participant opens agent, works, closes) → measure.
  * Claude: parse the pinned --session-id transcript (~/.claude/projects/.../<id>.jsonl) — isolated
  * Codex:  parse newest ~/.codex/sessions rollout since run start (time-window isolated)
- * Cursor: gate-only (no token source interactively)
+ * Cursor: quality gate auto; tokens recorded manually from cursor.com/dashboard/usage
  *
  * Usage:
  *   npm run workshop:run1   # Bloated baseline
  *   npm run workshop:run2   # Hygiene (after optimizing AGENTS.md)
  *   npm run workshop:run3   # Tool layer (after building proxy/hooks)
+ *   WORKSHOP_AGENT=codex|cursor npm run workshop:run1   # force non-Claude agent
  */
 import { execFileSync } from "node:child_process";
 import { writeFileSync, readFileSync, existsSync, mkdirSync } from "node:fs";
@@ -30,6 +31,18 @@ if (!RUN || !["run1", "run2", "run3"].includes(RUN)) {
 
 const RUN_NUM = RUN.slice(-1);
 
+const CURSOR_USAGE_URL = "https://cursor.com/dashboard/usage";
+
+/** OSC-8 hyperlink for terminals that support it (VS Code, iTerm, Cursor, …). */
+function consoleLink(url: string, label: string): string {
+  return `\x1b]8;;${url}\x07${label}\x1b]8;;\x07`;
+}
+
+function printCursorUsageLink(context: string): void {
+  console.log(`  ${context}`);
+  console.log(`  ${consoleLink(CURSOR_USAGE_URL, CURSOR_USAGE_URL)}`);
+}
+
 // ── agent detection ────────────────────────────────────────────────────
 
 function detectAgent(): string {
@@ -43,6 +56,10 @@ function detectAgent(): string {
   try { execFileSync("codex", ["--version"], { stdio: "ignore" }); return "codex"; } catch {}
   try { execFileSync("cursor-agent", ["--version"], { stdio: "ignore" }); return "cursor"; } catch {}
   return "claude";
+}
+
+function workshopRunCmd(runNum: string, agent: string): string {
+  return agent === "claude" ? `npm run workshop:run${runNum}` : `WORKSHOP_AGENT=${agent} npm run workshop:run${runNum}`;
 }
 
 function getGitUser(): string {
@@ -71,6 +88,12 @@ function detectLever(): string {
   try {
     if (readFileSync(join(APP_DIR, ".codex", "hooks.json"), "utf8").includes("PostToolUse")) return "hooks";
   } catch { /* no .codex/hooks.json */ }
+  try {
+    const cursorMcp = readFileSync(join(APP_DIR, ".cursor", "mcp.json"), "utf8");
+    if (cursorMcp.includes("9100")) return "proxy";
+    const cursorHooks = readFileSync(join(APP_DIR, ".cursor", "hooks.json"), "utf8");
+    if (cursorHooks.includes("afterMCPExecution")) return "hooks";
+  } catch { /* no .cursor config */ }
   if (existsSync(join(APP_DIR, ".claude", "hooks", "post-tool-use.ts"))) return "hooks";
   return "tool-layer";
 }
@@ -88,9 +111,11 @@ function cleanApp(): void {
   execFileSync("git", ["clean", "-fdq", "apps/angular-demo/src"], { cwd: REPO_ROOT, stdio: "ignore" });
 }
 
-function saveDelta(d: Snapshot, gatePassed: boolean) {
+function saveDelta(d: Snapshot, gatePassed: boolean, manualTokens = false) {
   if (!existsSync(SAVE_DIR)) mkdirSync(SAVE_DIR, { recursive: true });
-  writeFileSync(SAVE_FILE, JSON.stringify({ run: RUN, ...d, gatePassed, timestamp: new Date().toISOString() }, null, 2));
+  writeFileSync(SAVE_FILE, JSON.stringify({
+    run: RUN, ...d, gatePassed, manualTokens, timestamp: new Date().toISOString(),
+  }, null, 2));
 }
 
 function loadDelta(n: string) {
@@ -128,15 +153,21 @@ function compareRuns() {
     return change >= 0 ? `↓${change.toFixed(1)}%` : `↑${(-change).toFixed(1)}%`;
   };
   const gate = (r: { gatePassed?: boolean } | null): string => (r && r.gatePassed === false ? " (gate FAIL)" : "");
+  const manual = r1.manualTokens === true;
+
+  const fmtRun = (r: { totalTokens?: number; totalCost?: number; gatePassed?: boolean; manualTokens?: boolean }, label: string, vsBaseline?: number): void => {
+    if (r.manualTokens || (manual && r.totalTokens === 0)) {
+      console.log(`  ${label}: gate${gate(r)} | tokens: record from dashboard (not auto-measured)`);
+      return;
+    }
+    const pctStr = vsBaseline !== undefined && vsBaseline > 0 ? ` (${pct(r.totalTokens ?? 0, vsBaseline)} vs baseline)` : "";
+    console.log(`  ${label}: ${fmt(r.totalTokens ?? 0)} total | $${Number(r.totalCost ?? 0).toFixed(4)}${pctStr}${gate(r)}`);
+  };
 
   // Three INDEPENDENT optimizations, each measured vs the SAME baseline (run1) — NOT cumulative.
-  console.log(`\n  Run 1 (baseline):   ${fmt(r1.totalTokens)} total | $${Number(r1.totalCost).toFixed(4)}${gate(r1)}`);
-  if (r2) {
-    console.log(`  Run 2 (hygiene):    ${fmt(r2.totalTokens)} total | $${Number(r2.totalCost).toFixed(4)} (${pct(r2.totalTokens, r1.totalTokens)} vs baseline)${gate(r2)}`);
-  }
-  if (r3) {
-    console.log(`  Run 3 (tool layer): ${fmt(r3.totalTokens)} total | $${Number(r3.totalCost).toFixed(4)} (${pct(r3.totalTokens, r1.totalTokens)} vs baseline)${gate(r3)}`);
-  }
+  fmtRun(r1, "Run 1 (baseline):  ");
+  if (r2) fmtRun(r2, "Run 2 (hygiene):   ", r1.totalTokens);
+  if (r3) fmtRun(r3, "Run 3 (tool layer):", r1.totalTokens);
 }
 
 // ── main ───────────────────────────────────────────────────────────────
@@ -178,9 +209,17 @@ async function main() {
   console.log("  solve the task and report done, then CLOSE it.");
   console.log("  (the agent does NOT run the gate — you grade it");
   console.log("   here after Enter; it never sees the result.)");
+  if (agent === "cursor") {
+    console.log("");
+    console.log("  Cursor tokens: note total tokens/cost from the usage dashboard");
+    console.log("  (link printed after you press Enter). Match by runStart below.");
+  }
   console.log("━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━");
 
   const runStart = Date.now();
+  if (agent === "cursor") {
+    console.log(`\n  runStart: ${new Date(runStart).toISOString()}`);
+  }
   await waitForEnter();
 
   // Capture usage — per-agent, isolated (no global ccusage):
@@ -197,8 +236,9 @@ async function main() {
 
   printDelta(`Run ${RUN_NUM}`, d);
 
-  if (agent !== "claude" && agent !== "codex") {
-    console.log(`\n  ℹ️  Token measurement only available for Claude Code & Codex (cursor = gate-only).`);
+  if (agent === "cursor") {
+    console.log(`\n  ℹ️  Record tokens for runStart ${new Date(runStart).toISOString()}:`);
+    printCursorUsageLink("  Open:");
   }
 
   // Step 4: verify
@@ -206,7 +246,7 @@ async function main() {
   const gatePassed = verify();
 
   // Step 5: save & send
-  saveDelta(d, gatePassed);
+  saveDelta(d, gatePassed, agent === "cursor");
 
   sendWorkshopMetric({
     run: Number(RUN_NUM), agent, user: gitUser, task: activeScenario(), lever: detectLever(),
@@ -233,15 +273,19 @@ async function main() {
   }
 
   if (!gatePassed) {
-    console.error(`\n  ⚠️  Quality gate FAILED. Re-run: npm run workshop:run${RUN_NUM}`);
+    console.error(`\n  ⚠️  Quality gate FAILED. Re-run: ${workshopRunCmd(RUN_NUM, agent)}`);
     process.exit(1);
   }
 
   console.log(`\n  ✅ Run ${RUN_NUM} measured.`);
 
-  const nextHint = RUN === "run1" ? "optimize AGENTS.md → npm run workshop:run2"
-    : RUN === "run2" ? "build proxy or hooks → npm run workshop:run3"
-    : "wrap up — compare your three runs!";
+  const run2 = workshopRunCmd("2", agent);
+  const run3 = workshopRunCmd("3", agent);
+  const nextHint = RUN === "run1"
+    ? (agent === "cursor" ? `npm run agents:solution → ${run2}` : `optimize AGENTS.md → ${run2}`)
+    : RUN === "run2"
+      ? (agent === "cursor" ? `proxy:solution-cursor or hooks:solution-cursor → ${run3}` : `build proxy or hooks → ${run3}`)
+      : "wrap up — compare your three runs (Cursor: dashboard tokens)!";
 
   console.log(`  Next: ${nextHint}`);
 }

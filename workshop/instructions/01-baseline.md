@@ -39,9 +39,9 @@ From the output, write down:
 > Why cache matters: `cache read` bills at ~10% of input. A large cache-read share is usually good
 > — it means a stable prompt prefix was reused. Watch how it changes when you optimize.
 
-> Agent notes — **Claude**: launch with the printed `--session-id <id>`; usage is read from that one
-> session's transcript (isolated — other claude windows don't pollute it). **Codex**: launch `codex`
-> from `apps/angular-demo/`; usage is parsed from its newest session rollout (`~/.codex/sessions/`).
-> **cursor-agent**: token delta is unavailable; the gate still scores your run.
+> Agent notes — **Claude**: launch with the printed `--session-id <id>`. **Codex**: launch `codex`
+> from `apps/angular-demo/`. **Cursor**: launch `cursor-agent` from `apps/angular-demo/`; record
+> tokens from [cursor.com/dashboard/usage](https://cursor.com/dashboard/usage) for the printed
+> `runStart` time (runner does not auto-measure Cursor tokens).
 
 Next: [`02-optimize.md`](./02-optimize.md).
