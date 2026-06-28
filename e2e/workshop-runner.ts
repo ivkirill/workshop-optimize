@@ -123,18 +123,13 @@ function compareRuns() {
   };
   const gate = (r: { gatePassed?: boolean } | null): string => (r && r.gatePassed === false ? " (gate FAIL)" : "");
 
-  console.log(`\n  Run 1 (baseline):  ${fmt(r1.totalTokens)} total | $${Number(r1.totalCost).toFixed(4)}${gate(r1)}`);
+  // Three INDEPENDENT optimizations, each measured vs the SAME baseline (run1) — NOT cumulative.
+  console.log(`\n  Run 1 (baseline):   ${fmt(r1.totalTokens)} total | $${Number(r1.totalCost).toFixed(4)}${gate(r1)}`);
   if (r2) {
-    console.log(`  Run 2 (hygiene):   ${fmt(r2.totalTokens)} total | $${Number(r2.totalCost).toFixed(4)} (${pct(r2.totalTokens, r1.totalTokens)})${gate(r2)}`);
+    console.log(`  Run 2 (hygiene):    ${fmt(r2.totalTokens)} total | $${Number(r2.totalCost).toFixed(4)} (${pct(r2.totalTokens, r1.totalTokens)} vs baseline)${gate(r2)}`);
   }
   if (r3) {
-    const prev = r2 || r1;
-    console.log(`  Run 3 (tool layer): ${fmt(r3.totalTokens)} total | $${Number(r3.totalCost).toFixed(4)} (${pct(r3.totalTokens, prev.totalTokens)})${gate(r3)}`);
-  }
-  if (r2) {
-    const last = r3 || r2;
-    const better = last.totalTokens <= r1.totalTokens;
-    console.log(`\n  ${better ? "📉 Total savings" : "📈 Regression"} vs baseline: ${pct(last.totalTokens, r1.totalTokens)}${gate(last)}`);
+    console.log(`  Run 3 (tool layer): ${fmt(r3.totalTokens)} total | $${Number(r3.totalCost).toFixed(4)} (${pct(r3.totalTokens, r1.totalTokens)} vs baseline)${gate(r3)}`);
   }
 }
 
