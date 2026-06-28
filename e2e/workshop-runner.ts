@@ -82,9 +82,9 @@ function cleanApp(): void {
   execFileSync("git", ["clean", "-fdq", "apps/angular-demo/src"], { cwd: REPO_ROOT, stdio: "ignore" });
 }
 
-function saveDelta(d: Snapshot) {
+function saveDelta(d: Snapshot, gatePassed: boolean) {
   if (!existsSync(SAVE_DIR)) mkdirSync(SAVE_DIR, { recursive: true });
-  writeFileSync(SAVE_FILE, JSON.stringify({ run: RUN, ...d, timestamp: new Date().toISOString() }, null, 2));
+  writeFileSync(SAVE_FILE, JSON.stringify({ run: RUN, ...d, gatePassed, timestamp: new Date().toISOString() }, null, 2));
 }
 
 function loadDelta(n: string) {
@@ -116,19 +116,25 @@ function compareRuns() {
   if (r2raw && !r2) console.log(`  ⚠️  Run 2 delta stale (${String(r2raw.timestamp ?? "no date").slice(0, 10)}, older than run1) — ignored; re-run workshop:run2.`);
   if (r3raw && !r3) console.log(`  ⚠️  Run 3 delta stale (${String(r3raw.timestamp ?? "no date").slice(0, 10)}, older than run1) — ignored; re-run workshop:run3.`);
 
-  console.log(`\n  Run 1 (baseline):  ${fmt(r1.totalTokens)} total | $${Number(r1.totalCost).toFixed(4)}`);
+  // ↓ = reduction (good), ↑ = regression (worse). A hardcoded "↓${pct}" prints "↓-5.6%" when a run grows.
+  const pct = (value: number, base: number): string => {
+    const change = (1 - value / base) * 100;
+    return change >= 0 ? `↓${change.toFixed(1)}%` : `↑${(-change).toFixed(1)}%`;
+  };
+  const gate = (r: { gatePassed?: boolean } | null): string => (r && r.gatePassed === false ? " (gate FAIL)" : "");
+
+  console.log(`\n  Run 1 (baseline):  ${fmt(r1.totalTokens)} total | $${Number(r1.totalCost).toFixed(4)}${gate(r1)}`);
   if (r2) {
-    const pct2 = ((1 - r2.totalTokens / r1.totalTokens) * 100).toFixed(1);
-    console.log(`  Run 2 (hygiene):   ${fmt(r2.totalTokens)} total | $${Number(r2.totalCost).toFixed(4)} (↓${pct2}%)`);
+    console.log(`  Run 2 (hygiene):   ${fmt(r2.totalTokens)} total | $${Number(r2.totalCost).toFixed(4)} (${pct(r2.totalTokens, r1.totalTokens)})${gate(r2)}`);
   }
   if (r3) {
     const prev = r2 || r1;
-    const pct3 = ((1 - r3.totalTokens / prev.totalTokens) * 100).toFixed(1);
-    console.log(`  Run 3 (tool layer): ${fmt(r3.totalTokens)} total | $${Number(r3.totalCost).toFixed(4)} (↓${pct3}%)`);
+    console.log(`  Run 3 (tool layer): ${fmt(r3.totalTokens)} total | $${Number(r3.totalCost).toFixed(4)} (${pct(r3.totalTokens, prev.totalTokens)})${gate(r3)}`);
   }
   if (r2) {
-    const pctAll = ((1 - (r3 || r2).totalTokens / r1.totalTokens) * 100).toFixed(1);
-    console.log(`\n  📉 Total workshop savings: ↓${pctAll}% from baseline`);
+    const last = r3 || r2;
+    const better = last.totalTokens <= r1.totalTokens;
+    console.log(`\n  ${better ? "📉 Total savings" : "📈 Regression"} vs baseline: ${pct(last.totalTokens, r1.totalTokens)}${gate(last)}`);
   }
 }
 
@@ -199,7 +205,7 @@ async function main() {
   const gatePassed = verify();
 
   // Step 5: save & send
-  saveDelta(d);
+  saveDelta(d, gatePassed);
 
   sendWorkshopMetric({
     run: Number(RUN_NUM), agent, user: gitUser, task: activeScenario(), lever: detectLever(),

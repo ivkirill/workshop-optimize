@@ -38,9 +38,11 @@ Build a thin layer that compacts the bloated MCP responses **before** they reach
   truncation / field-filtering / summary in the `callTool` forward:
   ```bash
   npm run proxy:setup      # swaps apps/angular-demo/.mcp.json → the proxy (localhost:9100)
-  #   → edit servers/proxy/src/index.ts (add stripBloat/truncate/summary to the forward)
+  #   → edit servers/proxy/src/index.ts (field-filter results / strip the FILLER tail off tool
+  #     descriptions / dedup-cache repeats). Reference answer: workshop/proxy/index.ts
+  #     (or `npm run proxy:solution` to drop it in).
   npm run proxy:rebuild    # rebuild the proxy container with your changes
-  #   npm run proxy:reset   → back to the direct servers
+  #   npm run proxy:reset   → .mcp.json → direct + proxy code → passthrough болванка
   ```
 - **Option B — agent hooks**: a passthrough hook scaffold ships per agent — fill in the compactor
   (reference answers in `workshop/hooks/`):
