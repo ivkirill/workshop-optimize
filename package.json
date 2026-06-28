@@ -18,6 +18,7 @@
     "proxy:solution": "npm run proxy:setup && cp workshop/proxy/index.ts servers/proxy/src/index.ts && npm run proxy:rebuild && echo \"✅ эталон applied + proxy rebuilt (compact). Now: npm run workshop:run3\"",
     "proxy:reset": "git checkout apps/angular-demo/.mcp.json servers/proxy/src/index.ts && echo \"✅ .mcp.json → direct + proxy → passthrough болванка (run: npm run proxy:rebuild)\"",
     "hooks:setup": "tsx workshop/cli/hooks-setup.ts",
+    "hooks:solution": "git checkout apps/angular-demo/.mcp.json && npm run hooks:setup && cp workshop/hooks/post-tool-use.solution.ts apps/angular-demo/.claude/hooks/post-tool-use.ts && echo \"✅ hooks эталон applied (.mcp.json=direct, hook registered). Now: npm run workshop:run3\"",
     "hooks:reset": "tsx workshop/cli/hooks-reset.ts",
     "workshop:doctor": "tsx workshop/facilitator/doctor.ts",
     "typecheck": "tsc -p tsconfig.json --noEmit",
