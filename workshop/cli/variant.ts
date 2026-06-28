@@ -8,7 +8,20 @@
  */
 import { resolve } from 'node:path';
 import { copyFileSync, writeFileSync, mkdirSync, existsSync } from 'node:fs';
+import { execFileSync } from 'node:child_process';
 import { REPO_ROOT, die } from './_lib';
+import { sendWorkshopMetric } from '../../e2e/grafana';
+
+function gitUser(): string {
+  try { return execFileSync('git', ['config', 'user.name'], { encoding: 'utf8' }).trim() || 'unknown'; } catch { return 'unknown'; }
+}
+
+function detectAgent(): string {
+  for (const [bin, name] of [['claude', 'claude'], ['codex', 'codex'], ['cursor-agent', 'cursor']] as const) {
+    try { execFileSync(bin, ['--version'], { stdio: 'ignore' }); return name; } catch { /* not installed */ }
+  }
+  return 'probe';
+}
 
 const VARIANTS: Record<string, { dir: string; scenario: string }> = {
   '1': { dir: 'variant-1', scenario: 'catalog-pagination' },
@@ -30,3 +43,15 @@ mkdirSync(resolve(REPO_ROOT, '.workshop'), { recursive: true });
 writeFileSync(resolve(REPO_ROOT, '.workshop/active-scenario'), `${variant.scenario}\n`);
 
 process.stdout.write(`variant ${choice} selected → apps/angular-demo/TASK.md (scenario: ${variant.scenario})\n`);
+
+// Probe Grafana so the participant immediately sees their own row (user + scenario) before any run.
+sendWorkshopMetric({
+  run: 0,
+  agent: detectAgent(),
+  user: gitUser(),
+  task: variant.scenario,
+  inputTokens: 0, outputTokens: 0, cacheReadTokens: 0, cacheWriteTokens: 0,
+  totalTokens: 0, totalCost: 0,
+  gatePassed: false,
+  lever: 'probe',
+});

@@ -35,7 +35,6 @@
     "workshop:run1": "npx tsx e2e/workshop-runner.ts run1",
     "workshop:run2": "npx tsx e2e/workshop-runner.ts run2",
     "workshop:run3": "npx tsx e2e/workshop-runner.ts run3",
-    "workshop:baseline": "npx tsx e2e/baseline-runs.ts",
     "setup:mcp": "bash workshop/cli/setup-mcp.sh",
     "setup:mcp-cleanup": "bash workshop/cli/setup-mcp-cleanup.sh",
     "setup:docker": "bash workshop/cli/setup-docker.sh",

@@ -1,22 +1,29 @@
 # Agent Instructions — Plata Burrito CRM
 
-Angular 19 app (catalog / orders / edit-card / finance). REST backend at `/api`; task context in
-5 MCP servers: jira, confluence, sentry, testrail, github.
+Angular 19 app. Each feature lives in `src/app/<feature>/` (catalog, orders, edit-card) and has:
+`*.controller.ts` (state + business logic), `*.types.ts` (interfaces + constants), and
+`*.controller.spec.ts` (acceptance tests). REST backend at `/api`.
 
-## Task
-Read `TASK.md` → ticket number. Pull the ticket from the **jira** MCP (`jira_get_issue`): description,
-Definition of Done, links to confluence / sentry / testrail. The ticket + MCP context fully define
-the fix — you don't need anything else.
+## Task discovery
+Read `TASK.md` → ticket id. Pull the ticket from the **jira** MCP (`jira_get_issue`): description,
+Definition of Done, and links (confluence contract, sentry error, testrail cases). The ticket plus
+the failing `*.controller.spec.ts` fully define the fix — read the spec to see the exact expected behaviour.
 
 ## Scope
-- Edit ONLY the feature dir named in the ticket (`src/app/<feature>/`). Don't explore the rest of the repo.
-- The bug is in `*.controller.ts`. Don't change `*.types.ts`. Tests are `*.controller.spec.ts`.
-- Keep API contracts (`GET /api/products`, `GET /api/orders`, `PUT /api/products/:id`) and the
-  public controller surface (`state$`, `init`, `setQuery`, …). No new dependencies.
+- Edit ONLY the feature dir named in the ticket. Don't touch other features.
+- The fix goes in `*.controller.ts`. The types/constants you need already exist in `*.types.ts` —
+  import and use them, don't redefine them, don't edit them.
+- Don't edit the spec. Keep the existing public methods/getters and the `/api` contract. No new deps.
+
+## Pattern
+Controllers hold state in a `BehaviorSubject` exposed as `state$`, plus plain fields/getters/methods
+(e.g. `load`, `setField`, `save`, `errors`, validation). Tests build the controller with a fake API
+and assert on its public fields/getters — so the behaviour the test checks must be reachable through
+those. Match the surrounding style.
 
 ## Output
-Apply minimal changes. No preamble, no essays. When the fix meets the Definition of Done, report
-what changed in 1–2 lines and stop.
+Make the failing spec pass with minimal changes. No preamble, no essays. Report what changed in 1–2
+lines and stop.
 
 ## Commands
 `npm run start` · `npm run test` · `npm run lint`

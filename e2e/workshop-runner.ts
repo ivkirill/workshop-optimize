@@ -74,6 +74,14 @@ function detectLever(): string {
 const SAVE_DIR = join(REPO_ROOT, ".workshop");
 const SAVE_FILE = join(SAVE_DIR, `run-run${RUN_NUM}.json`);
 
+/** Roll back ALL agent edits across the app, not just the active feature. resetScenario() only
+ * restores the scenario's feature dir; an agent that touches app-level files (e.g. app.routes.ts)
+ * or creates stray files would otherwise leak across runs. Pairs with resetScenario() at each reset. */
+function cleanApp(): void {
+  execFileSync("git", ["checkout", "--", "apps/angular-demo/src"], { cwd: REPO_ROOT, stdio: "ignore" });
+  execFileSync("git", ["clean", "-fdq", "apps/angular-demo/src"], { cwd: REPO_ROOT, stdio: "ignore" });
+}
+
 function saveDelta(d: Snapshot) {
   if (!existsSync(SAVE_DIR)) mkdirSync(SAVE_DIR, { recursive: true });
   writeFileSync(SAVE_FILE, JSON.stringify({ run: RUN, ...d, timestamp: new Date().toISOString() }, null, 2));
@@ -94,10 +102,19 @@ function waitForEnter(): Promise<void> {
 
 function compareRuns() {
   const r1 = loadDelta("1");
-  const r2 = loadDelta("2");
-  const r3 = loadDelta("3");
-
   if (!r1) { console.log("  Run 1 not yet measured."); return; }
+
+  // Downstream runs belong to THIS workshop only if measured at/after run1. An older (or missing)
+  // timestamp means a stale delta from a previous run — flag it and ignore it (don't auto-delete,
+  // don't compare against it). Lets a re-run of run1 invalidate leftover run2/run3 by date alone.
+  const ts = (r: { timestamp?: string } | null): number => Date.parse(r?.timestamp ?? "");
+  const fresh = (r: { timestamp?: string } | null) => r != null && ts(r) >= ts(r1);
+  const r2raw = loadDelta("2");
+  const r3raw = loadDelta("3");
+  const r2 = fresh(r2raw) ? r2raw : null;
+  const r3 = fresh(r3raw) ? r3raw : null;
+  if (r2raw && !r2) console.log(`  ⚠️  Run 2 delta stale (${String(r2raw.timestamp ?? "no date").slice(0, 10)}, older than run1) — ignored; re-run workshop:run2.`);
+  if (r3raw && !r3) console.log(`  ⚠️  Run 3 delta stale (${String(r3raw.timestamp ?? "no date").slice(0, 10)}, older than run1) — ignored; re-run workshop:run3.`);
 
   console.log(`\n  Run 1 (baseline):  ${fmt(r1.totalTokens)} total | $${Number(r1.totalCost).toFixed(4)}`);
   if (r2) {
@@ -126,6 +143,7 @@ async function main() {
   console.log(`  Agent: ${agent} | User: ${gitUser}`);
   console.log(`═══════════════════════════════════════════\n`);
 
+  cleanApp();
   resetScenario();
 
   // Claude: pin a session id so we read EXACTLY this run's transcript — isolated from any other
@@ -194,6 +212,19 @@ async function main() {
   compareRuns();
   console.log(`\n  Gate: ${gatePassed ? "✅ PASS" : "❌ FAIL"}`);
 
+  // Snapshot what the agent actually wrote (facilitator review / debugging) BEFORE rolling it back.
+  try {
+    const diff = execFileSync("git", ["diff", "--", "apps/angular-demo/src"], { cwd: REPO_ROOT, encoding: "utf8" });
+    if (diff.trim()) writeFileSync(join(SAVE_DIR, `agent-fix-run${RUN_NUM}.diff`), diff);
+  } catch { /* best effort */ }
+
+  // Reset BEFORE any exit so even a FAILED run rolls back the agent's edits (verify already ran).
+  // WORKSHOP_KEEP=1 skips this so a facilitator can inspect what the agent actually wrote.
+  if (!process.env.WORKSHOP_KEEP) {
+    cleanApp();
+    resetScenario();
+  }
+
   if (!gatePassed) {
     console.error(`\n  ⚠️  Quality gate FAILED. Re-run: npm run workshop:run${RUN_NUM}`);
     process.exit(1);
@@ -206,7 +237,6 @@ async function main() {
     : "wrap up — compare your three runs!";
 
   console.log(`  Next: ${nextHint}`);
-  resetScenario();
 }
 
 main();

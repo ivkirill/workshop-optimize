@@ -127,7 +127,8 @@ export function sendWorkshopMetric(m: WorkshopMetric): void {
           { name: "workshop_cache_write_tokens", unit: "1", gauge: intGauge(m.cacheWriteTokens) },
           { name: "workshop_total_tokens", unit: "1", gauge: intGauge(m.totalTokens) },
           { name: "workshop_cost_usd", unit: "USD", gauge: dblGauge(m.totalCost) },
-          { name: "workshop_gate_passed", unit: "1", gauge: intGauge(m.gatePassed ? 1 : 0) },
+          // gate: 0=FAIL, 1=PASS, 2=PROBE (the `variant` registration ping — no run yet).
+          { name: "workshop_gate_passed", unit: "1", gauge: intGauge(m.lever === "probe" ? 2 : (m.gatePassed ? 1 : 0)) },
         ]
       }]
     }]
