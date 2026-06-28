@@ -65,6 +65,12 @@ function detectLever(): string {
   try {
     if (readFileSync(join(APP_DIR, ".mcp.json"), "utf8").includes("9100")) return "proxy";
   } catch { /* no .mcp.json */ }
+  try {
+    if (readFileSync(join(APP_DIR, ".codex", "config.toml"), "utf8").includes("9100")) return "proxy";
+  } catch { /* no .codex/config.toml */ }
+  try {
+    if (readFileSync(join(APP_DIR, ".codex", "hooks.json"), "utf8").includes("PostToolUse")) return "hooks";
+  } catch { /* no .codex/hooks.json */ }
   if (existsSync(join(APP_DIR, ".claude", "hooks", "post-tool-use.ts"))) return "hooks";
   return "tool-layer";
 }

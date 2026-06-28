@@ -8,7 +8,7 @@
  * Run A: hooks.json disabled → bloated MCP in context
  * Run B: hooks.json enabled  → post-tool-use.ts compacts before context
  */
-import { existsSync, writeFileSync, readFileSync } from "node:fs";
+import { existsSync, writeFileSync } from "node:fs";
 import { join } from "node:path";
 import {
   runCodex, printDelta, printCompare, resetScenario,
@@ -23,28 +23,39 @@ const AGENT = "codex";
 
 // ── Prompt: force agent to use all 5 bloated MCP servers ──────────────
 
-const TASK_PROMPT = `Read TASK.md and apply all fixes described in the acceptance criteria. Do not change the public API contract or add runtime dependencies. Verify with npm run scenario:verify.`;
+const TASK_PROMPT = `Read TASK.md and apply all fixes described in the acceptance criteria. Do not change the public API contract or add runtime dependencies. Report what changed when done.`;
 
 // ── hooks toggling ─────────────────────────────────────────────────────
-// Codex auto-recreates hooks.json on startup, so rename is unreliable.
-// We snapshot the original content and write an empty config for Run A.
+// Run A writes an empty (disabled) config; Run B wires the reference solution. The committed
+// .codex/hooks.json ships disabled ({}), so the participant baseline is never contaminated.
 
-let _originalContent = "";
-
-function snapshotHooks() {
-  if (existsSync(HOOKS_JSON)) _originalContent = readFileSync(HOOKS_JSON, "utf8");
-}
+const SOLUTION = join(REPO_ROOT, "workshop", "hooks", "post-tool-use.codex.ts");
 
 function disableHooks() {
-  writeFileSync(HOOKS_JSON, '{"hooks":{}}\n');
-  console.log("  🔒 Hooks disabled (empty hooks.json written)");
+  writeFileSync(HOOKS_JSON, "{}\n");
+  console.log("  🔒 Hooks disabled (empty hooks.json)");
 }
 
-function restoreHooks() {
-  if (_originalContent) {
-    writeFileSync(HOOKS_JSON, _originalContent);
-    console.log("  ✅ Hooks restored");
-  }
+function enableHooks() {
+  const config = {
+    hooks: {
+      PostToolUse: [
+        {
+          matcher: "mcp__.*",
+          hooks: [
+            {
+              type: "command",
+              command: `npx tsx ${SOLUTION}`,
+              timeout: 30,
+              statusMessage: "Compacting MCP output",
+            },
+          ],
+        },
+      ],
+    },
+  };
+  writeFileSync(HOOKS_JSON, JSON.stringify(config, null, 2) + "\n");
+  console.log("  ✅ Hooks enabled (compaction solution wired)");
 }
 
 // ── grafana push ──────────────────────────────────────────────────────
@@ -67,14 +78,11 @@ async function main() {
   console.log("  fewer tokens in agent context");
   console.log("═══════════════════════════════════════════\n");
 
-  snapshotHooks();
-
-  // Verify hooks config exists
-  if (!existsSync(HOOKS_JSON)) {
-    console.error("  ❌ hooks.json not found — run: npm run setup");
+  // Verify the reference solution exists
+  if (!existsSync(SOLUTION)) {
+    console.error("  ❌ solution hook missing: workshop/hooks/post-tool-use.codex.ts");
     process.exit(1);
   }
-  console.log(`  Hook config: present`);
 
   // ── Run A: No hooks ─────────────────────────────────────────────────
   console.log("\n━━━ Run A: NO hooks (bloated MCP in context) ━━━");
@@ -84,7 +92,7 @@ async function main() {
   const runA = await runCodex(TASK_PROMPT);
   if (runA.usage.totalTokens === 0) {
     console.error("  ❌ Run A produced no token data — codex may have failed.");
-    restoreHooks();
+    disableHooks();
     process.exit(1);
   }
   printDelta("Run A (no hooks)", runA.usage);
@@ -93,7 +101,7 @@ async function main() {
   // ── Run B: With hooks ───────────────────────────────────────────────
   console.log("\n━━━ Run B: WITH hooks (compact MCP in context) ━━━");
   resetScenario();
-  restoreHooks();
+  enableHooks();
 
   const runB = await runCodex(TASK_PROMPT);
   if (runB.usage.totalTokens === 0) {
@@ -103,8 +111,8 @@ async function main() {
   printDelta("Run B (hooks)", runB.usage);
   pushMetric(2, runB);
 
-  // ── Cleanup: leave hooks enabled ────────────────────────────────────
-  restoreHooks();
+  // ── Cleanup: leave hooks disabled (clean baseline) ──────────────────
+  disableHooks();
 
   // ── Compare ─────────────────────────────────────────────────────────
   console.log("\n━━━ COMPARISON ━━━");
