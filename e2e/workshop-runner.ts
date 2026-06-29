@@ -10,7 +10,7 @@
  *   npm run workshop:run1   # Bloated baseline
  *   npm run workshop:run2   # Hygiene (after optimizing AGENTS.md)
  *   npm run workshop:run3   # Tool layer (after building proxy/hooks)
- *   WORKSHOP_AGENT=codex|cursor npm run workshop:run1   # force non-Claude agent
+ *   Agent is picked once at `npm run setup -- <agent>` (WORKSHOP_AGENT= still overrides).
  */
 import { execFileSync } from "node:child_process";
 import { writeFileSync, readFileSync, existsSync, mkdirSync } from "node:fs";
@@ -19,6 +19,7 @@ import { createInterface } from "node:readline";
 import { randomUUID } from "node:crypto";
 import { resetScenario, verify, printDelta, fmt, parseCodexSession, parseClaudeSession, type Snapshot } from "./_lib.js";
 import { sendWorkshopMetric } from "./grafana.js";
+import { resolveAgent } from "../workshop/cli/agent.js";
 
 const REPO_ROOT = join(import.meta.dirname, "..");
 const APP_DIR = join(REPO_ROOT, "apps", "angular-demo");
@@ -43,23 +44,12 @@ function printCursorUsageLink(context: string): void {
   console.log(`  ${consoleLink(CURSOR_USAGE_URL, CURSOR_USAGE_URL)}`);
 }
 
-// ── agent detection ────────────────────────────────────────────────────
+// ── agent ──────────────────────────────────────────────────────────────
+// The agent is picked once at `npm run setup -- <agent>` and persisted, so every run targets it
+// without a WORKSHOP_AGENT= prefix. (resolveAgent still honors WORKSHOP_AGENT as an override.)
 
-function detectAgent(): string {
-  // Explicit choice wins over auto-detect — otherwise claude (usually installed) is always picked.
-  const forced = process.env.WORKSHOP_AGENT?.trim().toLowerCase();
-  if (forced) {
-    if (["claude", "codex", "cursor"].includes(forced)) return forced;
-    console.warn(`  ⚠️  WORKSHOP_AGENT="${forced}" not one of claude|codex|cursor — auto-detecting.`);
-  }
-  try { execFileSync("claude", ["--version"], { stdio: "ignore" }); return "claude"; } catch {}
-  try { execFileSync("codex", ["--version"], { stdio: "ignore" }); return "codex"; } catch {}
-  try { execFileSync("cursor-agent", ["--version"], { stdio: "ignore" }); return "cursor"; } catch {}
-  return "claude";
-}
-
-function workshopRunCmd(runNum: string, agent: string): string {
-  return agent === "claude" ? `npm run workshop:run${runNum}` : `WORKSHOP_AGENT=${agent} npm run workshop:run${runNum}`;
+function workshopRunCmd(runNum: string): string {
+  return `npm run workshop:run${runNum}`;
 }
 
 function getGitUser(): string {
@@ -173,7 +163,7 @@ function compareRuns() {
 // ── main ───────────────────────────────────────────────────────────────
 
 async function main() {
-  const agent = detectAgent();
+  const agent = resolveAgent();
   const gitUser = getGitUser();
 
   console.log(`\n═══════════════════════════════════════════`);
@@ -273,18 +263,18 @@ async function main() {
   }
 
   if (!gatePassed) {
-    console.error(`\n  ⚠️  Quality gate FAILED. Re-run: ${workshopRunCmd(RUN_NUM, agent)}`);
+    console.error(`\n  ⚠️  Quality gate FAILED. Re-run: ${workshopRunCmd(RUN_NUM)}`);
     process.exit(1);
   }
 
   console.log(`\n  ✅ Run ${RUN_NUM} measured.`);
 
-  const run2 = workshopRunCmd("2", agent);
-  const run3 = workshopRunCmd("3", agent);
+  const run2 = workshopRunCmd("2");
+  const run3 = workshopRunCmd("3");
   const nextHint = RUN === "run1"
     ? (agent === "cursor" ? `npm run agents:solution → ${run2}` : `optimize AGENTS.md → ${run2}`)
     : RUN === "run2"
-      ? (agent === "cursor" ? `proxy:solution-cursor or hooks:solution-cursor → ${run3}` : `build proxy or hooks → ${run3}`)
+      ? (agent === "cursor" ? `npm run proxy:solution or hooks:solution → ${run3}` : `build proxy or hooks → ${run3}`)
       : "wrap up — compare your three runs (Cursor: dashboard tokens)!";
 
   console.log(`  Next: ${nextHint}`);

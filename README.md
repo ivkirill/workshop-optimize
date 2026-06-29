@@ -1,88 +1,71 @@
 # Token-Efficient Coding Agents — Workshop
 
-A **runnable Angular product** (Plata Burrito CRM) with deliberately buggy features, a **dockerized
-backend + five mock MCP servers** that feed your agent the task, and **per-run token measurement**
-read from each run's own session transcript / logs (and pushed to Grafana). You fix a feature with
-the agent, measure what it cost, apply the optimizations we teach, re-run, and **prove you spent
-fewer tokens for the same correct result.**
+A runnable Angular product (Plata Burrito CRM) with deliberately buggy features, a dockerized backend
++ five mock MCP servers that feed your agent the task, and per-run token measurement read from each
+run's own session transcript. You fix a feature with the agent, measure what it cost, apply the
+optimizations we teach, re-run, and **prove you spent fewer tokens for the same correct result.**
 
-> A token reduction that breaks the solution does not count. Correctness is decided by a quality
-> gate (tests + typecheck + lint) that `workshop:run*` runs automatically after your agent finishes.
+> A token reduction that breaks the solution does not count. Correctness is decided by a quality gate
+> (tests + typecheck + lint) that `workshop:run*` runs automatically after your agent finishes.
 
 ## Prerequisites
 
 - Node ≥ 20.11, npm, and **Docker**.
-- **One coding agent** installed and authenticated:
-  - **Claude Code** (`ANTHROPIC_API_KEY`) — launch with the `--session-id <id>` printed by
-    `workshop:run*`; usage is read from that one session's transcript (isolated from other windows).
-  - **Codex** — usage parsed from its session rollout (`~/.codex/sessions/`). Just launch `codex`
-    from `apps/angular-demo/`; the harness picks up the newest session automatically.
-  - **cursor-agent** — quality gate auto; record tokens yourself from
-    [cursor.com/dashboard/usage](https://cursor.com/dashboard/usage) (match the `runStart` timestamp
-    the runner prints). Facilitator smoke: `npm run workshop:verify-cursor`.
+- **One coding agent** installed and authenticated — `claude`, `codex`, or `cursor-agent`.
 
 ## Quick start
 
 ```bash
 npm install
-npm run setup                 # Docker + MCP
-npm run workshop:doctor       # Verify everything is ready
+npm run setup                 # Docker + MCP; auto-detects your agent
+#   npm run setup -- codex    # …or pick one explicitly (claude | codex | cursor)
+npm run workshop:doctor       # verify everything is ready
 ```
+
+**You pick the agent once.** `setup` persists it (to `.workshop/active-agent`), and every later
+command — `proxy:*`, `hooks:*`, `workshop:run*` — targets it. No per-command flags. Switch any time
+with `npm run setup -- <agent>` or `npm run variant -- <n> <agent>`.
 
 ## Workshop flow (two terminals)
 
 A measured run is a **bracket**: `workshop:run*` resets the baseline, waits while you work in your
-agent, then reads **only your run's** tokens. So you start the agent **after** the run begins — use
-two terminals.
+agent, then reads **only your run's** tokens. So you start the agent **after** the run begins.
 
 **Terminal A — prep & measure:**
 
 ```bash
-npm run variant -- 1|2|3                  # pick your bug vector (writes TASK.md, sets the scenario)
-npm run workshop:run1                     # Claude (auto-detected) — resets, prints the launch cmd, waits
-# Codex or Cursor (when Claude is also installed):
-WORKSHOP_AGENT=codex npm run workshop:run1
-WORKSHOP_AGENT=cursor npm run workshop:run1
+npm run variant -- 1|2|3      # pick your bug vector (writes TASK.md, sets the scenario)
+npm run workshop:run1         # resets, prints the exact launch command, then waits
 ```
 
-The runner auto-detects Claude if installed; set `WORKSHOP_AGENT=codex|cursor` to pick another. It prints the
-exact command to run in Terminal B.
-
-**Terminal B — the agent** (only once Run 1 is already waiting) — use the command Run 1 printed:
+**Terminal B — the agent** (only once Run 1 is already waiting) — run the command Run 1 printed:
 
 ```bash
 cd apps/angular-demo
-claude --session-id <id>                  # Claude — <id> printed by workshop:run1
-codex                                     # Codex  — usage parsed from its session rollout
-cursor-agent --approve-mcps               # Cursor — tokens from dashboard; gate auto
+claude --session-id <id>      # Claude — <id> printed by workshop:run1
+codex                         # Codex  — usage parsed from its session rollout
+cursor-agent                  # Cursor — tokens from the dashboard; gate auto
 ```
 
 Start it **fresh** here — config + MCP warm-up must happen *inside* the measured window. The agent
-reads `TASK.md` (ticket number), pulls the task from the **jira** MCP server (→ confluence, sentry,
-testrail), fixes the feature, then you **close** the agent.
+reads `TASK.md`, pulls the task from the **jira** MCP server (→ confluence, sentry, testrail), fixes
+the feature, then you **close** it.
 
-**Back in Terminal A:** press Enter → gate runs (+ auto token measure for Claude/Codex; Cursor: note
-tokens from dashboard).
+**Back in Terminal A:** press Enter → the gate runs and tokens are measured (Cursor: read your run's
+tokens from the dashboard link the runner prints, matched by `runStart`).
 
 Then optimize **in place on the same branch** (no branch switching) and re-measure:
 
 ```bash
-npm run agents:solution                   # Run 2 prep — optimized AGENTS.md (not measured)
-npm run workshop:run2                     # Run 2 — AGENTS.md hygiene
-#   → build proxy or hooks (not measured)
-npm run workshop:run3                     # Run 3 — tool layer
-
-# Cursor (set WORKSHOP_AGENT on each measured run):
-npm run proxy:direct-cursor && npm run hooks:reset-cursor   # baseline
-WORKSHOP_AGENT=cursor npm run workshop:run1
-npm run agents:solution && WORKSHOP_AGENT=cursor npm run workshop:run2
-npm run proxy:solution-cursor && WORKSHOP_AGENT=cursor npm run workshop:run3   # or hooks:solution-cursor
-npm run workshop:verify-cursor          # facilitator: smoke-check config scripts
+npm run agents:solution       # Run 2 prep — apply the optimized AGENTS.md (or edit it yourself)
+npm run workshop:run2         # Run 2 — AGENTS.md hygiene
+#   build a proxy or hook (not measured): npm run proxy:solution  OR  npm run hooks:solution
+npm run workshop:run3         # Run 3 — tool layer
 ```
 
-Each run prints your delta vs earlier runs. Measurement is **per-session** (Claude via the pinned
-`--session-id` transcript; Codex via its cleared log dir), so other agent windows don't pollute it.
-`workshop:run*` resets the baseline itself — you never switch branches.
+Each run prints your delta vs Run 1. The three optimizations are measured **independently** against
+the same baseline — not cumulative. `workshop:run*` resets the baseline itself; you never switch
+branches.
 
 ## Three bug variants
 
@@ -95,39 +78,29 @@ Each run prints your delta vs earlier runs. Measurement is **per-session** (Clau
 ## Commands
 
 ```bash
-npm run setup                 # Docker + MCP + variant-1
-npm run cleanup               # Stop everything
-npm run setup:docker          # Start containers only
-npm run setup:mcp             # Register MCP for Codex/Cursor
-npm run variant -- 1|2|3      # Pick task
-npm run workshop:doctor       # Preflight check
-npm run workshop:run1|2|3     # Measured runs (gate runs automatically inside)
-# WORKSHOP_AGENT=codex|cursor npm run workshop:run1   # when Claude is also installed
-npm run agents:solution       # Apply optimized AGENTS.md (Run 2 prep)
-npm run agents:reset          # Restore bloated AGENTS.md
-npm run proxy:direct-cursor   # Cursor MCP baseline
-npm run proxy:solution-cursor # Cursor Run 3 proxy эталон
-npm run hooks:solution-cursor # Cursor Run 3 hooks эталон
-npm run workshop:verify-cursor
+npm run setup [-- <agent>]    # Docker + MCP; pick/auto-detect the agent
+npm run cleanup               # stop everything
+npm run variant -- 1|2|3      # pick task (optional trailing agent to switch)
+npm run workshop:doctor       # preflight check
+npm run workshop:run1|2|3     # measured runs (gate runs automatically inside)
+
+# Run 2 — AGENTS.md hygiene
+npm run agents:solution       # apply optimized AGENTS.md   /  agents:reset to restore
+
+# Run 3 — tool layer (pick one), all driven by your selected agent:
+npm run proxy:setup           # MCP config → compact proxy (:9100); edit servers/proxy/src/index.ts
+npm run proxy:solution        # drop in the reference proxy + rebuild   /  proxy:reset, proxy:direct
+npm run hooks:setup           # install the passthrough hook scaffold
+npm run hooks:solution        # drop in the reference compaction hook   /  hooks:reset
 ```
 
 ## Agent working directory
 
-The participant agent runs from **`apps/angular-demo/`**. It sees:
-- `AGENTS.md` — project instructions (bloated — you'll optimize it in Run 2)
-- `TASK.md` — ticket number (generated by `npm run variant`)
-- `.mcp.json` — MCP server config (Claude: jira, confluence, sentry, testrail, github)
-- `.cursor/mcp.json` — MCP config for cursor-agent (workshop: `npm run proxy:direct-cursor`)
-- `.cursor/cli.json` — CLI allowlist (`Mcp(...)`, `Shell(...)`) for `cursor-agent`
-- `.cursor/permissions.json` — IDE allowlist (`mcpAllowlist`, `terminalAllowlist` incl. hook command)
-- `.claude/settings.json` — Claude Code permissions + model
-
-Its working directory is `apps/angular-demo/`. **Information-hiding** keeps the agent in scope:
-nothing in its config or prompts (`AGENTS.md`, `TASK.md`) mentions the workshop infrastructure
-(`workshop/` grader + answers, `e2e/`, `servers/`) that lives above it, and the agent never runs or
-sees the quality gate — the facilitator grades each run out-of-band. So the agent has no pointer or
-reason to leave. This is not a hard sandbox: an agent with shell access could still traverse up, but
-nothing in what it reads leads it there.
+The participant agent runs from **`apps/angular-demo/`** and sees only `AGENTS.md` (bloated — you
+optimize it in Run 2), `TASK.md`, and its MCP config (`.mcp.json` / `.codex/config.toml` /
+`.cursor/mcp.json`). **Information-hiding** keeps it in scope: nothing it reads mentions the workshop
+infrastructure above it (`workshop/` grader, `e2e/`, `servers/`), and it never sees the quality gate —
+the facilitator grades each run out-of-band.
 
 ## Docs
 
@@ -140,5 +113,5 @@ nothing in what it reads leads it there.
 ## Cleanup
 
 ```bash
-npm run cleanup               # Stop Docker + remove MCP configs
+npm run cleanup               # stop Docker + remove MCP configs
 ```

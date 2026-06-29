@@ -15,9 +15,7 @@ measured. Then:
 
 ```bash
 npm run workshop:run2     # resets baseline, waits while you run the agent fresh, measures, compares to Run 1
-# Cursor: npm run agents:solution first (applies workshop/reference/AGENTS.optimized.md), then:
-# WORKSHOP_AGENT=cursor npm run workshop:run2
-# Facilitator эталон: npm run agents:solution
+# Facilitator reference (optimized AGENTS.md): npm run agents:solution
 ```
 
 | Lever | What to try | What it targets |
@@ -37,15 +35,15 @@ Build a thin layer that compacts the bloated MCP responses **before** they reach
 (this build is not measured):
 
 - **Option A — MCP proxy** (`servers/proxy/`): a 6th service already running on `:9100` as a
-  **passthrough болванка** between the agent and the 5 MCP servers. Point the agent at it, then add
+  **passthrough stub** between the agent and the 5 MCP servers. Point the agent at it, then add
   truncation / field-filtering / summary in the `callTool` forward:
   ```bash
-  npm run proxy:setup      # swaps apps/angular-demo/.mcp.json → the proxy (localhost:9100)
+  npm run proxy:setup      # swaps your agent's MCP config → the proxy (localhost:9100)
   #   → edit servers/proxy/src/index.ts (field-filter results / strip the FILLER tail off tool
   #     descriptions / dedup-cache repeats). Reference answer: workshop/proxy/index.ts
   #     (or `npm run proxy:solution` to drop it in).
   npm run proxy:rebuild    # rebuild the proxy container with your changes
-  #   npm run proxy:reset   → .mcp.json → direct + proxy code → passthrough болванка
+  #   npm run proxy:reset   → MCP config → direct + proxy code → passthrough stub
   ```
 - **Option B — agent hooks**: a passthrough hook scaffold ships per agent — fill in the compactor
   (reference answers in `workshop/hooks/`):
@@ -56,16 +54,16 @@ Build a thin layer that compacts the bloated MCP responses **before** they reach
     (`afterMCPExecution`; MCP stays direct via `.cursor/mcp.json`). Allowlists in
     `.cursor/cli.json` + `.cursor/permissions.json` (hook command: `npx:tsx .cursor/hooks/compact-mcp.ts`).
     ```bash
-    npm run hooks:setup-cursor      # passthrough scaffold + register hook
+    npm run hooks:setup      # passthrough scaffold + register hook
     #   → edit .cursor/hooks/compact-mcp.ts (reference: workshop/hooks/compact-mcp.cursor.ts)
-    #   npm run hooks:solution-cursor   → эталон (facilitator)
-    #   npm run hooks:reset-cursor      → disable hooks
+    #   npm run hooks:solution   → reference (facilitator)
+    #   npm run hooks:reset      → disable hooks
     ```
   - **Cursor proxy** — point `.cursor/mcp.json` at `:9100`:
     ```bash
-    npm run proxy:setup-cursor      # .cursor/mcp.json → proxy
-    #   npm run proxy:solution-cursor → эталон + rebuild
-    #   npm run proxy:reset-cursor    → direct MCP
+    npm run proxy:setup      # .cursor/mcp.json → proxy
+    #   npm run proxy:solution → reference + rebuild
+    #   npm run proxy:reset    → direct MCP
     ```
 
 Then:

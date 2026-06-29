@@ -37,9 +37,10 @@ function main(): void {
   console.log("workshop:verify-cursor\n");
 
   // ── 1. Baseline ──
+  // WORKSHOP_AGENT=cursor forces the agent-driven scripts to target cursor regardless of the persisted choice.
   console.log("━━━ 1. Baseline (direct MCP, hooks disabled) ━━━");
-  sh("npm run proxy:direct-cursor");
-  sh("npm run hooks:reset-cursor");
+  sh("WORKSHOP_AGENT=cursor npm run proxy:direct");
+  sh("WORKSHOP_AGENT=cursor npm run hooks:reset");
   assert(read(MCP).includes(":9001"), ".cursor/mcp.json → direct (:9001)");
   assert(!read(MCP).includes("9100"), ".cursor/mcp.json has no proxy port");
   assert(read(CLI).includes("Mcp(jira:jira_get_issue)"), "cli.json allowlists MCP tools");
@@ -56,14 +57,14 @@ function main(): void {
   assert(read(AGENTS).includes("Edit ONLY"), "AGENTS.md is the optimized reference");
 
   // ── 3. Proxy solution (Run 3a) ──
-  console.log("\n━━━ 3. proxy:solution-cursor (Run 3 proxy) ━━━");
-  sh("npm run proxy:solution-cursor");
+  console.log("\n━━━ 3. proxy:solution [cursor] (Run 3 proxy) ━━━");
+  sh("WORKSHOP_AGENT=cursor npm run proxy:solution");
   assert(read(MCP).includes("9100"), ".cursor/mcp.json → proxy (:9100)");
 
   // ── 4. Hooks solution (Run 3b) ──
-  console.log("\n━━━ 4. hooks:solution-cursor (Run 3 hooks) ━━━");
-  sh("npm run proxy:reset-cursor");
-  sh("npm run hooks:solution-cursor");
+  console.log("\n━━━ 4. hooks:solution [cursor] (Run 3 hooks) ━━━");
+  sh("WORKSHOP_AGENT=cursor npm run proxy:reset");
+  sh("WORKSHOP_AGENT=cursor npm run hooks:solution");
   assert(read(MCP).includes(":9001"), ".cursor/mcp.json → direct for hooks path");
   assert(!read(MCP).includes("9100"), ".cursor/mcp.json has no proxy port (hooks lever)");
   assert(read(HOOKS).includes("afterMCPExecution"), "hooks.json registers afterMCPExecution");
@@ -72,8 +73,8 @@ function main(): void {
   // ── Cleanup ──
   console.log("\n━━━ Cleanup ━━━");
   sh("npm run agents:reset");
-  sh("npm run proxy:reset-cursor");
-  sh("npm run hooks:reset-cursor");
+  sh("WORKSHOP_AGENT=cursor npm run proxy:reset");
+  sh("WORKSHOP_AGENT=cursor npm run hooks:reset");
   assert(read(AGENTS).length > optimizedLen, "AGENTS.md restored to bloated baseline");
 
   console.log("\n✅ workshop:verify-cursor PASS — Cursor config scripts apply correctly.");

@@ -11,9 +11,13 @@
     `apps/angular-demo/`; the harness picks up the newest session automatically.
   - **cursor-agent** — quality gate auto; record tokens from
     [cursor.com/dashboard/usage](https://cursor.com/dashboard/usage) using the `runStart` timestamp
-    printed by `WORKSHOP_AGENT=cursor npm run workshop:run*`. Baseline: `npm run proxy:direct-cursor && npm run hooks:reset-cursor`.
+    printed by `npm run workshop:run*`. Baseline: `npm run proxy:direct && npm run hooks:reset`.
     Allowlists are committed in `.cursor/cli.json` and `.cursor/permissions.json` (same MCP tools as Claude).
 - `npx` available (used to run `ccusage`; nothing to install).
+
+The agent is **auto-detected**. To force one (or when several are installed), pick it once —
+`npm run setup -- codex` (or `npm run variant -- 1 cursor`) — and every later `proxy:*` / `hooks:*` /
+`workshop:run*` command targets it.
 
 ## Install and check
 

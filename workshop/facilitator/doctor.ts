@@ -97,9 +97,9 @@ const checks: readonly Check[] = [
       return { name: 'Cursor config (app)', status: 'ok', detail: '.cursor/mcp + cli.json + permissions.json + hooks' };
     }
     if (!hasMcp && !hasHook && !hasCli && !hasPerms) {
-      return { name: 'Cursor config (app)', status: 'warn', detail: 'run npm run proxy:direct-cursor' };
+      return { name: 'Cursor config (app)', status: 'warn', detail: 'run WORKSHOP_AGENT=cursor npm run proxy:direct' };
     }
-    return { name: 'Cursor config (app)', status: 'warn', detail: 'incomplete .cursor/ — npm run proxy:direct-cursor' };
+    return { name: 'Cursor config (app)', status: 'warn', detail: 'incomplete .cursor/ — WORKSHOP_AGENT=cursor npm run proxy:direct' };
   },
   function tracker(): CheckResult {
     try {
