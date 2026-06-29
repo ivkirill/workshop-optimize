@@ -3,6 +3,7 @@
  * everything — and GREEN once the grid is URL-driven, debounced, and cache-backed.
  */
 import { of, BehaviorSubject, type Observable } from 'rxjs';
+import { delay } from 'rxjs/operators';
 import { convertToParamMap, type ParamMap, type ActivatedRoute, type Router } from '@angular/router';
 import { OrdersController } from './orders.controller';
 import { OrderApi, type OrderQuery, type Order, type OrderPage } from './orders.types';
@@ -18,7 +19,10 @@ class FakeApi extends OrderApi {
   readonly calls: OrderQuery[] = [];
   list(query: OrderQuery): Observable<OrderPage> {
     this.calls.push({ ...query });
-    return of(makePage([order(`ORD-${query.page}00`), order(`ORD-${query.page}01`)], query.page));
+    // Async on purpose: responses resolve on a later tick, so switchMap cancels an in-flight
+    // request when a newer one starts. A cache that only fills on completion loses the cancelled
+    // query's slot — a repeat then refetches. Caching/deduping in flight is what keeps it to one GET.
+    return of(makePage([order(`ORD-${query.page}00`), order(`ORD-${query.page}01`)], query.page)).pipe(delay(0));
   }
   get last(): OrderQuery | undefined { return this.calls[this.calls.length - 1]; }
 }
