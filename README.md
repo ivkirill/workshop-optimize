@@ -27,6 +27,7 @@ command — `proxy:*`, `hooks:*`, `workshop:run*` — targets it. No per-command
 with `npm run setup -- <agent>` or `npm run variant -- <n> <agent>`.
 
 ## Workshop flow (two terminals)
+### Run 1. Initial measurment for default agent
 
 A measured run is a **bracket**: `workshop:run*` resets the baseline, waits while you work in your
 agent, then reads **only your run's** tokens. So you start the agent **after** the run begins.
@@ -56,16 +57,69 @@ tokens from the dashboard link the runner prints, matched by `runStart`).
 
 Then optimize **in place on the same branch** (no branch switching) and re-measure:
 
+### Run 2. Hygiene optimizations for AGENTS.md
+
+Optimize AGENTS.md file (located in apps/angular-demo folder) using the information from the theory section
+
+Note:
+> you can use command `npm run agents:solution` to setup the solution from the workshop right away
+
+
+**Terminal A — prep & measure:**
 ```bash
-npm run agents:solution       # Run 2 prep — apply the optimized AGENTS.md (or edit it yourself)
-npm run workshop:run2         # Run 2 — AGENTS.md hygiene
-#   build a proxy or hook (not measured): npm run proxy:solution  OR  npm run hooks:solution
-npm run workshop:run3         # Run 3 — tool layer
+npm run workshop:run2         # resets, prints the exact launch command, then waits
 ```
 
-Each run prints your delta vs Run 1. The three optimizations are measured **independently** against
-the same baseline — not cumulative. `workshop:run*` resets the baseline itself; you never switch
-branches.
+**Terminal B — the agent** (only once Run 1 is already waiting) — run the command Run 1 printed:
+
+```bash
+cd apps/angular-demo OR nothing if you inside the apps demo folder
+claude --session-id <id>      # Claude — <id> printed by workshop:run1
+codex                         # Codex  — usage parsed from its session rollout
+cursor-agent                  # Cursor — tokens from the dashboard; gate auto
+```
+
+Start it **fresh** here — config + MCP warm-up must happen *inside* the measured window. The agent
+reads `TASK.md`, pulls the task from the **jira** MCP server (→ confluence, sentry, testrail), fixes
+the feature, then you **close** it.
+
+**Back in Terminal A:** press Enter → the gate runs and tokens are measured (Cursor: read your run's
+tokens from the dashboard link the runner prints, matched by `runStart`).
+
+Run prints your delta vs Run 1. The second optimization are measured **independently** against
+the same baseline from Run 1.
+
+### Run 3. Optimization for MCP or Agent Hooks
+
+Optimize AGENTS.md file (located in apps/angular-demo folder) using the information from the theory section
+
+Note:
+> you can use command `npm run proxy:solution` to setup the solution for MCP-proxy from the workshop
+> OR `npm run hooks:solution` to setup the solution for Agent Hooks
+
+**Terminal A — prep & measure:**
+```bash
+npm run workshop:run3         # resets, prints the exact launch command, then waits
+```
+
+**Terminal B — the agent** (only once Run 1 is already waiting) — run the command Run 1 printed:
+
+```bash
+cd apps/angular-demo OR nothing if you inside the apps demo folder
+claude --session-id <id>      # Claude — <id> printed by workshop:run1
+codex                         # Codex  — usage parsed from its session rollout
+cursor-agent                  # Cursor — tokens from the dashboard; gate auto
+```
+
+Start it **fresh** here — config + MCP warm-up must happen *inside* the measured window. The agent
+reads `TASK.md`, pulls the task from the **jira** MCP server (→ confluence, sentry, testrail), fixes
+the feature, then you **close** it.
+
+**Back in Terminal A:** press Enter → the gate runs and tokens are measured (Cursor: read your run's
+tokens from the dashboard link the runner prints, matched by `runStart`).
+
+Run prints your delta vs Run 1. The third optimization are measured **independently** against
+the same baseline from Run 1.
 
 ## Three bug variants
 

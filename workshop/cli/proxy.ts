@@ -16,6 +16,7 @@ import { REPO_ROOT, die } from './_lib';
 import { AGENTS, resolveAgent, type AgentName } from './agent';
 
 const PROXY_INDEX = 'servers/proxy/src/index.ts';
+const PROXY_SRC = 'servers/proxy/src';
 
 const abs = (rel: string): string => join(REPO_ROOT, rel);
 
@@ -25,9 +26,14 @@ export function cp(srcRel: string, destRel: string): void {
   copyFileSync(abs(srcRel), abs(destRel));
 }
 
-/** Restore a tracked file to its committed state. */
+/** Restore a tracked path to its committed state. */
 export function gitCheckout(rel: string): void {
   execFileSync('git', ['checkout', '--', rel], { cwd: REPO_ROOT, stdio: 'inherit' });
+}
+
+/** Drop untracked files under a path (e.g. helper modules an agent added). Leaves gitignored files. */
+function gitClean(rel: string): void {
+  execFileSync('git', ['clean', '-fdq', '--', rel], { cwd: REPO_ROOT, stdio: 'inherit' });
 }
 
 function rebuild(): void {
@@ -64,7 +70,10 @@ const MODES: Record<string, (agent: AgentName) => void> = {
   },
   reset(agent) {
     proxyDirect(agent);
-    gitCheckout(PROXY_INDEX);
+    // Revert tracked files AND drop untracked ones an agent may have added (mirrors the runner's
+    // cleanApp) — a git checkout of index.ts alone leaves new helper files behind.
+    gitCheckout(PROXY_SRC);
+    gitClean(PROXY_SRC);
     console.log(`✅ ${agent} MCP config → direct + proxy → passthrough baseline (run: npm run proxy:rebuild)`);
   },
 };
