@@ -67,10 +67,12 @@ deep-linkable and survives reload / back-forward:
 - **Debounce** search input by ~300ms: rapid keystrokes collapse into one request.
 - **Single request in flight**: when a newer query/page starts, cancel the previous one so a slower
   earlier response can never overwrite a newer one.
-- **Cache + dedup**: cache results by the full query key; a repeated query is served from cache
-  (no refetch).
+- **Cache + dedup**: cache results by the full query key; a repeated query issues **zero** new GETs —
+  including a query whose earlier request was cancelled mid-flight (dedupe the in-flight request,
+  don't only cache on completion).
 - **Stale-while-revalidate**: while fetching an uncached query, keep the previous results visible
   (a subtle "updating" hint) instead of flashing the loading state.
+- **Errors**: a failed request surfaces an error state — never a silent blank grid.
 
 ## Empty states
 Tell the three cases apart: **no-orders** (nothing in the system), **no-match** (a filter excluded
