@@ -1,70 +1,61 @@
 /**
- * Order-search tests. RED on the shipped (buggy) controller and GREEN once input is debounced and
- * stale responses are cancelled.
+ * Order-search tests. RED on the shipped (buggy) controller — which ignores the URL and re-fetches
+ * everything — and GREEN once the grid is URL-driven, debounced, and cache-backed.
  */
-import { fakeAsync, tick } from '@angular/core/testing';
-import { of, type Observable } from 'rxjs';
-import { delay } from 'rxjs/operators';
+import { of, BehaviorSubject, type Observable } from 'rxjs';
+import { convertToParamMap, type ParamMap, type ActivatedRoute, type Router } from '@angular/router';
 import { OrdersController } from './orders.controller';
-import { OrderApi, ORDERS, type OrderQuery, type Order, type OrderPage, type OrderState } from './orders.types';
+import { OrderApi, type OrderQuery, type Order, type OrderPage } from './orders.types';
 
 function order(id: string): Order {
   return { id, location: 'centro', createdAt: '2026-06-24', status: 'paid', items: [], total: 100, customer: 'Ana' };
 }
-
 function makePage(items: Order[], page: number): OrderPage {
-  return { items, page, pageSize: 10, total: items.length, totalPages: 3, sort: 'date-desc' };
+  return { items, page, pageSize: 10, total: 42, totalPages: 5, sort: 'date-desc' };
 }
 
 class FakeApi extends OrderApi {
   readonly calls: OrderQuery[] = [];
-  readonly delays = new Map<string, number>();
   list(query: OrderQuery): Observable<OrderPage> {
     this.calls.push({ ...query });
-    const ms = this.delays.get(query.q ?? '') ?? 0;
-    return of(makePage([order(query.q ?? 'init')], query.page)).pipe(delay(ms));
+    return of(makePage([order(`ORD-${query.page}00`), order(`ORD-${query.page}01`)], query.page));
   }
+  get last(): OrderQuery | undefined { return this.calls[this.calls.length - 1]; }
 }
 
-function latest(controller: OrdersController): OrderState {
-  let state: OrderState = { status: 'idle' };
-  controller.state$.subscribe((s) => (state = s));
-  return state;
+function makeRoute(initial: Record<string, string> = {}) {
+  const subject = new BehaviorSubject<ParamMap>(convertToParamMap(initial));
+  const route = {
+    snapshot: { queryParamMap: convertToParamMap(initial) },
+    queryParamMap: subject.asObservable(),
+  } as unknown as ActivatedRoute;
+  return { route, emit: (p: Record<string, string>) => subject.next(convertToParamMap(p)) };
 }
 
-describe('OrdersController search', () => {
-  it('debounces rapid input into a single request for the final query', fakeAsync(() => {
+const router = { navigate: () => Promise.resolve(true) } as unknown as Router;
+
+describe('OrdersController data grid', () => {
+  it('reads page + sort + status + q + location from the URL on init', () => {
     const api = new FakeApi();
-    const controller = new OrdersController(api);
-    controller.init();
-    tick(ORDERS.DEBOUNCE_MS);
-    const before = api.calls.length;
+    const { route } = makeRoute({ page: '3', sort: 'total-desc', status: 'refunded', q: 'ana', location: 'centro' });
+    new OrdersController(api, route, router).init();
+    expect(api.last).toMatchObject({ page: 3, sort: 'total-desc', status: 'refunded', q: 'ana', location: 'centro' });
+  });
 
-    controller.setQuery('a');
-    controller.setQuery('as');
-    controller.setQuery('asa');
-    controller.setQuery('asada');
-    tick(ORDERS.DEBOUNCE_MS);
-
-    const after = api.calls.slice(before);
-    expect(after.length).toBe(1);
-    expect(after[0].q).toBe('asada');
-  }));
-
-  it('never lets a stale (slower, older) response overwrite a newer one', fakeAsync(() => {
+  it('reacts to a later route change', () => {
     const api = new FakeApi();
-    api.delays.set('slow', 50);
-    api.delays.set('fast', 10);
-    const controller = new OrdersController(api);
-    controller.init();
-    tick(ORDERS.DEBOUNCE_MS);
+    const { route, emit } = makeRoute();
+    new OrdersController(api, route, router).init();
+    emit({ page: '2' });
+    expect(api.last?.page).toBe(2);
+  });
 
-    controller.setQuery('slow');
-    controller.setQuery('fast');
-    tick(ORDERS.DEBOUNCE_MS + 100);
-
-    const state = latest(controller);
-    expect(state.status).toBe('results');
-    if (state.status === 'results') expect(state.page.items[0].id).toBe('fast');
-  }));
+  it('serves a repeated query from cache instead of refetching', () => {
+    const api = new FakeApi();
+    const { route, emit } = makeRoute({ page: '1' });
+    new OrdersController(api, route, router).init();
+    emit({ page: '2' });
+    emit({ page: '1' });
+    expect(api.calls.filter((c) => c.page === 1).length).toBe(1);
+  });
 });

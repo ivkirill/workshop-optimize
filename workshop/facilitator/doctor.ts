@@ -53,7 +53,7 @@ const checks: readonly Check[] = [
       : { name: 'scenario + quality gate', status: 'fail', detail: `missing ${missing.length} assets` };
   },
   function backends(): CheckResult {
-    return present('docker-compose.yml', 'servers/rest-mock/package.json', 'servers/mcp/package.json')
+    return present('docker-compose.yml', 'apps/angular-demo/mock-server/package.json', 'servers/mcp/package.json')
       ? { name: 'backends (docker)', status: 'ok', detail: 'docker-compose + servers present' }
       : { name: 'backends (docker)', status: 'warn', detail: 'missing docker files' };
   },

@@ -15,7 +15,7 @@ x-mcp-health: &mcp-health
 
 services:
   rest-mock:
-    build: ./servers/rest-mock
+    build: ./apps/angular-demo/mock-server
     container_name: plata-rest-mock
     ports:
       - "8080:8080"

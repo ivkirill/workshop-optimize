@@ -15,13 +15,14 @@ information.
 
 The application is built with **Angular 19** using a standalone component architecture with
 RxJS-based reactive state management. It communicates with a backend REST API that provides
-product, order, and finance endpoints. The backend is mocked locally via Docker containers for
-development purposes.
+product, order, and finance endpoints. The backend at `/api` is a local fixture — you don't run,
+read, or modify it; the request/response shapes you need are defined in each feature's `*.types.ts`
+and the confluence contract.
 
 ## Repository Structure and Organization
 
 ```
-apps/angular-demo/
+/
 ├── src/
 │   ├── app/
 │   │   ├── catalog/                    # Product catalog with data grid
@@ -59,8 +60,9 @@ The following npm scripts are available in this project.
 |---|---|---|
 | `npm run start` | Start the Angular dev server on port 4200. | Server listening on http://localhost:4200 |
 | `npm run build` | Production build with AOT compilation and minification. | Output in `dist/` directory |
-| `npm run test` | Run the Jest test suite. | Test results summary |
-| `npm run lint` | Run ESLint across source files. | Warnings/errors or clean |
+| `npm run test` | Run the unit spec for the feature this ticket targets (scoped via `TASK.md`). | Test results summary |
+| `npm run typecheck` | Type-check the app with no emit. | Clean or type errors |
+| `npm run lint` | Run ESLint across `src`. | Warnings/errors or clean |
 
 ## Task Discovery
 
@@ -122,7 +124,3 @@ API classes extend abstract base, implement `list()` / `get()` / `save()`. Use A
 Tests create stub/fake API implementations, pass them to controller constructor, subscribe
 to `state$` for assertions. Time-sensitive tests use `fakeAsync` with `tick()`.
 
-## Model Selection
-
-The default model is in `.claude/settings.json`. You can change it to trade off speed,
-quality, and cost. Cheaper models may struggle with complex RxJS or TypeScript generics.

@@ -40,11 +40,15 @@ export interface OrderQuery {
   location?: string;
 }
 
+/** Why a result set is empty — distinct cases the UI must tell apart. */
+export type EmptyReason = 'no-orders' | 'no-match' | 'out-of-range';
+
 export type OrderState =
   | { status: 'idle' }
   | { status: 'loading' }
-  | { status: 'results'; page: OrderPage }
-  | { status: 'empty' }
+  /** `revalidating` = showing cached/previous data while a fresh request is in flight (SWR). */
+  | { status: 'results'; page: OrderPage; revalidating: boolean }
+  | { status: 'empty'; reason: EmptyReason }
   | { status: 'error'; message: string };
 
 export const ORDERS = {
@@ -55,6 +59,11 @@ export const ORDERS = {
   DEFAULT_SORT: 'date-desc',
   DEBOUNCE_MS: 300,
 } as const;
+
+/** Stable cache/dedup key for a query. */
+export function queryKey(query: OrderQuery): string {
+  return `${query.page}|${query.pageSize}|${query.sort}|${query.status ?? ''}|${query.q ?? ''}|${query.location ?? ''}`;
+}
 
 /** Data-access boundary — do not change the API contract. */
 export abstract class OrderApi {

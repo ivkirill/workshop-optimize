@@ -24,6 +24,13 @@ those. Match the surrounding style.
 ## Output
 Make the failing spec pass with minimal changes. No preamble, no essays. Report what changed in 1–2
 lines and stop.
+## Backend Services
+REST backend at `/api`. Five MCP: **jira** (tickets), **confluence** (contracts), **sentry** (errors), **testrail** (acceptance tests), **github** (commit status).
+
+## Common Patterns
+Controllers manage state via `BehaviorSubject<StateType>`, expose it as `readonly state$`.
+Methods like `setQuery()`, `setPage()`, `setSort()` update state. Components subscribe to
+`state$` and render reactively.
 
 ## Commands
 `npm run start` · `npm run test` · `npm run lint`
